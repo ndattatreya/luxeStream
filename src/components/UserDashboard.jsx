@@ -3,7 +3,22 @@ import { useAuth } from '../authContext';
 import { Link, useNavigate } from 'react-router-dom';
 import MovieCard from './MovieCard';
 
-const Dashboard = () => {
+// Add this new function after existing imports
+const fetchIMDBDetails = async (movieTitle) => {
+  try {
+    const response = await fetch(`http://www.omdbapi.com/?t=${encodeURIComponent(movieTitle)}&apikey=951519c3&plot=full`);
+    const data = await response.json();
+    if (data.Response === "True") {
+      return data;
+    }
+    throw new Error('Movie not found');
+  } catch (error) {
+    console.error('Error fetching IMDB details:', error);
+    return null;
+  }
+};
+
+const UserDashboard = () => {
   const navigate = useNavigate();
   const [featuredContent, setFeaturedContent] = useState(null);
   const [topMovies, setTopMovies] = useState([]);
@@ -25,6 +40,10 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filteredMovies, setFilteredMovies] = useState([]);
+
+  // Add this state
+  const [selectedMovieDetails, setSelectedMovieDetails] = useState(null);
+  const [showMovieModal, setShowMovieModal] = useState(false);
 
   const logout = () => {
     // Clear authentication data (e.g., tokens, user data)
@@ -116,16 +135,6 @@ const Dashboard = () => {
     };
     fetchTrending();
 
-    const fetchMovies = async () => {
-      try {
-        const response = await fetch('http://localhost:5000/api/movies');
-        const data = await response.json();
-        setMovies(data);
-      } catch (error) {
-        console.error('Error fetching movies:', error);
-      }
-    };
-
     // Simulate continue watching (using top rated movies for demo)
     const fetchContinueWatching = async () => {
       try {
@@ -152,20 +161,46 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-    const fetchMovies = async () => {
+    const fetchMoviesWithDetails = async () => {
       try {
-        const response = await fetch('https://api.themoviedb.org/3/movie/popular?api_key=012c99e22d2da82680b0e1206ac07ffa');
-        const data = await response.json();
-        setMovies(data.results);
-        setFilteredMovies(data.results);
-        setLoading(false);
+        setLoading(true);
+        const response = await fetch('http://localhost:5000/api/movies');
+        if (!response.ok) {
+          throw new Error('Failed to fetch movies');
+        }
+        
+        const result = await response.json();
+        const moviesData = result.data || result;
+        
+        if (Array.isArray(moviesData)) {
+          const publishedMovies = moviesData.filter(movie => movie.status === 'published');
+          
+          // Fetch IMDB details for each movie
+          const moviesWithDetails = await Promise.all(
+            publishedMovies.map(async (movie) => {
+              const imdbDetails = await fetchIMDBDetails(movie.title);
+              return {
+                ...movie,
+                imdbDetails,
+                poster_path: movie.posterUrl || imdbDetails?.Poster,
+                rating: movie.rating || imdbDetails?.imdbRating
+              };
+            })
+          );
+          
+          setMovies(moviesWithDetails);
+        } else {
+          setMovies([]);
+        }
       } catch (error) {
+        console.error('Error fetching movies:', error);
         setError('Failed to fetch movies');
+      } finally {
         setLoading(false);
       }
     };
 
-    fetchMovies();
+    fetchMoviesWithDetails();
   }, []);
 
   useEffect(() => {
@@ -208,7 +243,7 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      /* Navigation Bar */
+      {/* Navigation Bar */}
       <nav className="bg-black bg-opacity-90 fixed w-full z-50 top-0">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-8">
@@ -252,8 +287,12 @@ const Dashboard = () => {
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent">
             <div className="container mx-auto px-4 h-full flex items-end pb-8 md:pb-20">
               <div className="max-w-2xl">
-                <h2 className="text-2xl md:text-5xl font-bold mb-2 md:mb-4">{featuredContent.title}</h2>
-                <p className="text-sm md:text-lg mb-4 md:mb-6 line-clamp-3 md:line-clamp-none">{featuredContent.overview}</p>
+                <h2 className="text-2xl md:text-5xl font-bold mb-2 md:mb-4">
+                  {featuredContent.title}
+                </h2>
+                <p className="text-sm md:text-lg mb-4 md:mb-6 line-clamp-3 md:line-clamp-none">
+                  {featuredContent.overview}
+                </p>
                 <div className="flex flex-col md:flex-row gap-2 md:gap-4">
                   <button className="bg-red-600 px-4 md:px-8 py-2 md:py-3 rounded hover:bg-red-700 text-sm md:text-base">
                     Play Now
@@ -267,6 +306,53 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+
+      <div className="container mx-auto px-4 py-8 mt-16">
+        <section className="mb-12">
+          <h2 className="text-3xl font-bold mb-6">Newly Launched Movies</h2>
+          {loading ? (
+            <div className="text-center py-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600 mx-auto"></div>
+            </div>
+          ) : error ? (
+            <div className="text-red-500 text-center py-4">{error}</div>
+          ) : movies.length === 0 ? (
+            <div className="text-center py-4">No movies available</div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {movies.map((movie) => (
+                <MovieCard
+                  key={movie._id || `movie-${movie.id}`} // Ensure unique key
+                  movie={{
+                    id: movie._id || movie.id,
+                    title: movie.title,
+                    poster_path: movie.posterUrl || movie.poster_path,
+                    vote_average: movie.rating || movie.vote_average,
+                    overview: movie.imdbDetails?.Plot || movie.description
+                  }}
+                  onClick={() => {
+                    setSelectedMovieDetails(movie);
+                    setShowMovieModal(true);
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Movie Details Modal */}
+        {showMovieModal && selectedMovieDetails && (
+          <MovieDetailsModal
+            movie={{
+              ...selectedMovieDetails,
+              posterUrl: selectedMovieDetails.poster_path,
+              rating: selectedMovieDetails.rating
+            }}
+            imdbDetails={selectedMovieDetails.imdbDetails}
+            onClose={() => setShowMovieModal(false)}
+          />
+        )}
+      </div>
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8 mt-16">
@@ -482,4 +568,146 @@ const SubscriptionModal = ({ movie, onClose }) => {
   );
 };
 
-export default Dashboard;
+// Add the movie details modal component
+const MovieDetailsModal = ({ movie, imdbDetails, onClose }) => {
+  const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
+
+  const handlePayment = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      const orderResponse = await fetch('http://localhost:5000/api/payments/create-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          amount: 1200,
+          movieId: movie._id,
+          userId: user?._id
+        })
+      });
+
+      if (!orderResponse.ok) {
+        throw new Error('Failed to create order');
+      }
+
+      const orderData = await orderResponse.json();
+
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'LuxeStream',
+        description: `Payment for ${movie.title}`,
+        order_id: orderData.id,
+        handler: async (response) => {
+          try {
+            const verifyResponse = await fetch('http://localhost:5000/api/payments/verify', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature,
+                movieId: movie._id
+              })
+            });
+
+            if (verifyResponse.ok) {
+              // Payment successful, redirect to movie page
+              navigate(`/movie/${movie._id}`);
+            } else {
+              throw new Error('Payment verification failed');
+            }
+          } catch (error) {
+            console.error('Payment verification error:', error);
+            alert('Payment verification failed. Please contact support.');
+          }
+        },
+        prefill: {
+          name: user?.username || '',
+          email: user?.email || ''
+        },
+        theme: {
+          color: '#dc2626'
+        }
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
+    } catch (error) {
+      console.error('Payment error:', error);
+      alert('Failed to initiate payment. Please try again.');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+      <div className="bg-gray-800 p-8 rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-end">
+          <button onClick={onClose} className="text-gray-400 hover:text-white">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex flex-col md:flex-row gap-8">
+          <div className="md:w-1/3">
+            <img 
+              src={movie.posterUrl || imdbDetails?.Poster} 
+              alt={movie.title} 
+              className="w-full rounded-lg shadow-lg"
+            />
+          </div>
+          <div className="md:w-2/3">
+            <h2 className="text-3xl font-bold mb-4">{movie.title}</h2>
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div>
+                <p className="text-gray-400">Rating</p>
+                <p className="font-bold">{movie.rating || imdbDetails?.imdbRating}/10</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Genre</p>
+                <p className="font-bold">{movie.genre || imdbDetails?.Genre}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Year</p>
+                <p className="font-bold">{imdbDetails?.Year}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Runtime</p>
+                <p className="font-bold">{imdbDetails?.Runtime}</p>
+              </div>
+            </div>
+            <div className="mb-6">
+              <h3 className="text-xl font-bold mb-2">Plot</h3>
+              <p className="text-gray-300">{movie.description || imdbDetails?.Plot}</p>
+            </div>
+            <div className="mb-6">
+              <h3 className="text-xl font-bold mb-2">Cast</h3>
+              <p className="text-gray-300">{imdbDetails?.Actors}</p>
+            </div>
+            <div className="mb-6">
+              <h3 className="text-xl font-bold mb-2">Director</h3>
+              <p className="text-gray-300">{imdbDetails?.Director}</p>
+            </div>
+            <button 
+              onClick={handlePayment}
+              className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition duration-300"
+            >
+              Watch Now (₹1200)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default UserDashboard;

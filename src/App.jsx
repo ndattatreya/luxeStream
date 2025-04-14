@@ -1,7 +1,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { AuthProvider } from './authContext.jsx';
-import Dashboard from './components/Dashboard';
+import ProtectedRoute from './components/ProtectedRoute'; // Add this import
+import UserDashboard from './components/UserDashboard';
 import Login from './components/Login';
 import SignUp from './components/SignUp.jsx';
 import MovieDetails from './components/MovieDetails.jsx';
@@ -32,7 +33,7 @@ const App = () => {
           <Route path="/" element={<Homepage />} />                {/* Home Page */}
           <Route path="/login" element={<Login />} />              {/* Login Page */}
           <Route path="/signup" element={<SignUp />} />            {/* Signup Page */}
-          <Route path="/dashboard" element={<Dashboard />} />      {/* Dashboard */}
+          <Route path="/userdashboard" element={<UserDashboard />} />      {/* Dashboard */}
           <Route path="/moviedetails/:id" element={<MovieDetails />} />  {/* Movie Details with Dynamic ID */}
           <Route path="/contactus" element={<ContactUs />} />      {/* Contact Us */}
           <Route path="/navbar" element={<Navigate to="/" />} />
@@ -53,6 +54,14 @@ const App = () => {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin-signup" element={<AdminSignup />} />
           <Route path="/admin-login" element={<AdminLogin />} />
+          <Route 
+            path="/dashboard" 
+            element={
+              <ProtectedRoute>
+                <UserDashboard />
+              </ProtectedRoute>
+            } 
+          />
         </Routes>
       </Router>
     </AuthProvider>

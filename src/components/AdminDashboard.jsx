@@ -19,6 +19,15 @@ const AdminDashboard = () => {
     reviews: [], // Add reviews field
     publishDate: null
   });
+  const [newMovieData, setNewMovieData] = useState({
+    title: '',
+    description: '',
+    genre: 'Action', // default value
+    rating: '',
+    posterUrl: '',
+    status: 'draft',
+    reviews: []
+  });
   const [editingMovieId, setEditingMovieId] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
@@ -34,10 +43,21 @@ const AdminDashboard = () => {
   const fetchMovies = async () => {
     try {
       const response = await fetch('http://localhost:5000/api/movies');
+      if (!response.ok) {
+        throw new Error('Failed to fetch movies');
+      }
       const data = await response.json();
-      setMovies(data);
+      
+      if (Array.isArray(data)) {
+        setMovies(data);
+      } else if (data.success && Array.isArray(data.data)) {
+        setMovies(data.data);
+      } else {
+        setMovies([]);
+      }
     } catch (error) {
       console.error('Error fetching movies:', error);
+      setMovies([]);
     }
   };
 
@@ -76,6 +96,11 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchUsers();
+  }, []);
+
+  // Add useEffect to fetch movies on mount
+  useEffect(() => {
+    fetchMovies();
   }, []);
 
   // Add another useEffect to update filteredUsers when users change
@@ -138,6 +163,50 @@ const AdminDashboard = () => {
       fetchMovies();
     } catch (error) {
       console.error('Error saving movie:', error);
+    }
+  };
+
+  // Add handler for new movie submission
+  const handleAddMovie = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await fetch('http://localhost:5000/api/movies', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newMovieData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add movie');
+      }
+
+      const result = await response.json();
+      
+      // Update movies list with new movie
+      setMovies(prevMovies => [...prevMovies, result.data]);
+      
+      // Reset form and close modal
+      setShowMovieModal(false);
+      setNewMovieData({
+        title: '',
+        description: '',
+        genre: 'Action',
+        rating: '',
+        posterUrl: '',
+        status: 'draft',
+        reviews: []
+      });
+      
+      // Show success message
+      alert('Movie added successfully');
+      
+      // Refresh movies list
+      await fetchMovies();
+    } catch (error) {
+      console.error('Error adding movie:', error);
+      alert(error.message);
     }
   };
 
@@ -330,13 +399,21 @@ const AdminDashboard = () => {
   };
 
   // Calculate analytics
-  const totalMovies = movies.length;
-  const averageRating =
-    movies.reduce((sum, movie) => sum + movie.rating, 0) / (movies.length || 1);
-  const moviesByGenre = movies.reduce((acc, movie) => {
-    acc[movie.genre] = (acc[movie.genre] || 0) + 1;
+  const totalMovies = movies?.length || 0;
+
+  const averageRating = movies?.length 
+    ? movies.reduce((sum, movie) => {
+        const rating = parseFloat(movie?.rating) || 0;
+        return sum + rating;
+      }, 0) / movies.length 
+    : 0;
+
+  const moviesByGenre = movies?.reduce((acc, movie) => {
+    if (movie?.genre) {
+      acc[movie.genre] = (acc[movie.genre] || 0) + 1;
+    }
     return acc;
-  }, {});
+  }, {}) || {};
 
   return (
     <div className="min-h-screen bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 text-white">
@@ -365,10 +442,9 @@ const AdminDashboard = () => {
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8 mt-16">
-        <h2 className="text-3xl font-bold mb-6">Admin Dashboard</h2>
 
         {/* Analytics Section */}
-        <section className="mb-12">
+        {/*<section className="mb-12">
           <h3 className="text-2xl font-bold mb-4">Movie Analytics</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
@@ -390,7 +466,7 @@ const AdminDashboard = () => {
               </ul>
             </div>
           </div>
-        </section>
+        </section>*/}
 
         {/* Movie Management Section */}
         <section className="mb-12">
@@ -398,8 +474,17 @@ const AdminDashboard = () => {
             <h3 className="text-2xl font-bold">Manage Movies</h3>
             <button
               onClick={() => {
-                setEditingMovie(null); // Reset editing movie
-                setShowMovieModal(true); // Show the modal
+                setEditingMovie(null);
+                setNewMovieData({
+                  title: '',
+                  description: '',
+                  genre: 'Action',
+                  rating: '',
+                  posterUrl: '',
+                  status: 'draft',
+                  reviews: []
+                });
+                setShowMovieModal(true);
               }}
               className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
             >
@@ -620,29 +705,25 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Movie Edit Modal */}
-        {showMovieModal && editingMovie && (
+        {/* Movie Add/Edit Modal */}
+        {showMovieModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-gray-800 p-6 rounded-lg w-full max-w-4xl">
-              <h2 className="text-2xl font-bold mb-4">Edit Movie</h2>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                handleMovieUpdate(editingMovie._id, {
-                  title: e.target.title.value,
-                  description: e.target.description.value,
-                  genre: e.target.genre.value,
-                  rating: e.target.rating.value,
-                  posterUrl: e.target.posterUrl.value,
-                  status: e.target.status.value,
-                });
-              }}>
+              <h2 className="text-2xl font-bold mb-4">
+                {editingMovie ? 'Edit Movie' : 'Add New Movie'}
+              </h2>
+              <form onSubmit={editingMovie ? handleMovieUpdate : handleAddMovie}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="mb-4">
                     <label className="block text-gray-400 mb-2">Title</label>
                     <input
                       type="text"
                       name="title"
-                      defaultValue={editingMovie.title}
+                      value={editingMovie ? editingMovie.title : newMovieData.title}
+                      onChange={(e) => editingMovie 
+                        ? setEditingMovie({...editingMovie, title: e.target.value})
+                        : setNewMovieData({...newMovieData, title: e.target.value})
+                      }
                       className="w-full bg-gray-700 text-white px-4 py-2 rounded"
                       required
                     />
@@ -651,7 +732,11 @@ const AdminDashboard = () => {
                     <label className="block text-gray-400 mb-2">Genre</label>
                     <select
                       name="genre"
-                      defaultValue={editingMovie.genre}
+                      value={editingMovie ? editingMovie.genre : newMovieData.genre}
+                      onChange={(e) => editingMovie
+                        ? setEditingMovie({...editingMovie, genre: e.target.value})
+                        : setNewMovieData({...newMovieData, genre: e.target.value})
+                      }
                       className="w-full bg-gray-700 text-white px-4 py-2 rounded"
                       required
                     >
@@ -670,7 +755,11 @@ const AdminDashboard = () => {
                       min="0"
                       max="10"
                       step="0.1"
-                      defaultValue={editingMovie.rating}
+                      value={editingMovie ? editingMovie.rating : newMovieData.rating}
+                      onChange={(e) => editingMovie
+                        ? setEditingMovie({...editingMovie, rating: e.target.value})
+                        : setNewMovieData({...newMovieData, rating: e.target.value})
+                      }
                       className="w-full bg-gray-700 text-white px-4 py-2 rounded"
                       required
                     />
@@ -680,7 +769,11 @@ const AdminDashboard = () => {
                     <input
                       type="url"
                       name="posterUrl"
-                      defaultValue={editingMovie.posterUrl}
+                      value={editingMovie ? editingMovie.posterUrl : newMovieData.posterUrl}
+                      onChange={(e) => editingMovie
+                        ? setEditingMovie({...editingMovie, posterUrl: e.target.value})
+                        : setNewMovieData({...newMovieData, posterUrl: e.target.value})
+                      }
                       className="w-full bg-gray-700 text-white px-4 py-2 rounded"
                       required
                     />
@@ -689,50 +782,24 @@ const AdminDashboard = () => {
                     <label className="block text-gray-400 mb-2">Description</label>
                     <textarea
                       name="description"
-                      defaultValue={editingMovie.description}
+                      value={editingMovie ? editingMovie.description : newMovieData.description}
+                      onChange={(e) => editingMovie
+                        ? setEditingMovie({...editingMovie, description: e.target.value})
+                        : setNewMovieData({...newMovieData, description: e.target.value})
+                      }
                       className="w-full bg-gray-700 text-white px-4 py-2 rounded h-32"
                       required
                     />
-                  </div>
-                  <div className="mb-4">
-                    <label className="block text-gray-400 mb-2">Status</label>
-                    <select
-                      name="status"
-                      defaultValue={editingMovie.status}
-                      className="w-full bg-gray-700 text-white px-4 py-2 rounded"
-                    >
-                      <option value="draft">Draft</option>
-                      <option value="published">Published</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Reviews Section */}
-                <div className="mt-6">
-                  <h3 className="text-xl font-bold mb-4">Reviews</h3>
-                  <div className="max-h-60 overflow-y-auto">
-                    {editingMovie.reviews?.map((review, index) => (
-                      <div key={index} className="bg-gray-700 p-3 rounded mb-2">
-                        <p className="text-sm mb-1">{review.content}</p>
-                        <div className="flex justify-between text-xs text-gray-400">
-                          <span>{review.username}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteReview(editingMovie._id, review._id)}
-                            className="text-red-400 hover:text-red-500"
-                          >
-                            Remove Review
-                          </button>
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 </div>
 
                 <div className="flex justify-end gap-4 mt-6">
                   <button
                     type="button"
-                    onClick={() => setShowMovieModal(false)}
+                    onClick={() => {
+                      setShowMovieModal(false);
+                      setEditingMovie(null);
+                    }}
                     className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
                   >
                     Cancel
@@ -741,17 +808,8 @@ const AdminDashboard = () => {
                     type="submit"
                     className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
                   >
-                    Save Changes
+                    {editingMovie ? 'Save Changes' : 'Add Movie'}
                   </button>
-                  {editingMovie.status === 'draft' && (
-                    <button
-                      type="button"
-                      onClick={() => handlePublish(editingMovie._id)}
-                      className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-                    >
-                      Publish
-                    </button>
-                  )}
                 </div>
               </form>
             </div>
