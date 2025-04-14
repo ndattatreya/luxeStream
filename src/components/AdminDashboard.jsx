@@ -23,6 +23,8 @@ const AdminDashboard = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [currentFilter, setCurrentFilter] = useState('all'); // Add this state for tracking current filter
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Add this state for managing movie edit modal
   const [showMovieModal, setShowMovieModal] = useState(false);
@@ -41,24 +43,39 @@ const AdminDashboard = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/users');
+      setLoading(true);
+      const response = await fetch('http://localhost:5000/api/users', {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+
       if (!response.ok) {
-        throw new Error('Failed to fetch users');
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      const data = await response.json();
-      setUsers(data); // Update the state with the fetched users
+
+      const result = await response.json();
+      
+      // Check if we have the data array in the response
+      if (result.success && Array.isArray(result.data)) {
+        setUsers(result.data);
+        setFilteredUsers(result.data);
+      } else {
+        throw new Error('Invalid response format from server');
+      }
     } catch (error) {
       console.error('Error fetching users:', error);
+      setError(error.message);
+      setUsers([]);
+      setFilteredUsers([]);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    const initializeData = async () => {
-      await fetchUsers();
-      setFilteredUsers(users); // Initialize filteredUsers with all users
-    };
-    
-    initializeData();
+    fetchUsers();
   }, []);
 
   // Add another useEffect to update filteredUsers when users change
@@ -266,12 +283,10 @@ const AdminDashboard = () => {
   // Handle user profile updates
   const handleUpdateUser = async (userId, updatedData) => {
     try {
-      // Add console.log to debug the data being sent
-      console.log('Updating user:', userId, updatedData);
-
       const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
         method: 'PUT',
-        headers: { 
+        headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(updatedData)
@@ -279,36 +294,31 @@ const AdminDashboard = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update user');
+        throw new Error(errorData.message || `Failed to update user (${response.status})`);
       }
 
-      const updatedUser = await response.json();
-      console.log('Updated user:', updatedUser); // Debug log
+      const result = await response.json();
 
-      // Update the users state
-      setUsers(prevUsers => 
-        prevUsers.map(user => 
-          user._id === userId ? updatedUser : user
-        )
-      );
-
-      // Only update filtered users if they exist
-      if (filteredUsers.length > 0) {
-        setFilteredUsers(prevFiltered =>
-          prevFiltered.map(user =>
-            user._id === userId ? updatedUser : user
+      if (result.success) {
+        // Update both users and filteredUsers states
+        setUsers(prevUsers => 
+          prevUsers.map(user => 
+            user._id === userId ? result.data : user
           )
         );
+        setFilteredUsers(prevUsers => 
+          prevUsers.map(user => 
+            user._id === userId ? result.data : user
+          )
+        );
+        setShowUserModal(false);
+        alert('User updated successfully');
+      } else {
+        throw new Error(result.message || 'Failed to update user');
       }
-
-      setShowUserModal(false);
-      setSelectedUser(null);
-      
-      // Add success message
-      alert('User updated successfully');
     } catch (error) {
       console.error('Error updating user:', error);
-      alert(error.message || 'Failed to update user profile');
+      alert(error.message);
     }
   };
 
@@ -485,11 +495,15 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {users.length === 0 ? (
-            <p className="text-gray-400">No users found. Please check the database.</p>
+          {loading ? (
+            <div className="text-center py-4">Loading users...</div>
+          ) : error ? (
+            <div className="text-red-500 text-center py-4">{error}</div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="text-center py-4">No users found</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {(currentFilter === 'all' ? users : filteredUsers).map((user) => (
+              {filteredUsers.map((user) => (
                 <div key={user._id} className="bg-gray-800 p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow">
                   <div className="flex justify-between items-start mb-4">
                     <div>

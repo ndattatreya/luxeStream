@@ -9,6 +9,7 @@ const GitHubStrategy = require('passport-github2').Strategy;
 const bcrypt = require('bcrypt');
 const User = require('./models/User'); // Import the User model
 const Movie = require('./models/Movie'); // Create a Movie model
+const userRoutes = require('./routes/userRoutes');
 
 require('dotenv').config();
 
@@ -24,11 +25,18 @@ mongoose
   .catch((err) => console.error('MongoDB connection error:', err));
 
 // Middleware
+app.use(express.json());
 app.use(cors({
   origin: ['http://localhost:3000', 'http://localhost:5173'], // Allow multiple origins
   credentials: true, // Allow cookies and credentials
 }));
-app.use(express.json());
+
+// Force JSON content type
+app.use((req, res, next) => {
+  res.setHeader('Content-Type', 'application/json');
+  next();
+});
+
 app.use(session({
   secret: 'luxestream_secret',
   resave: false,
@@ -36,6 +44,9 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+
+// Mount routes
+app.use('/api/users', userRoutes);
 
 // Razorpay setup
 const razorpayInstance = new Razorpay({
