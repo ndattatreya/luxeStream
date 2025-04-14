@@ -1,0 +1,751 @@
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { FaEdit, FaTrash, FaUser, FaChartBar, FaArrowUp, FaArrowDown } from 'react-icons/fa';
+
+const AdminDashboard = () => {
+  const navigate = useNavigate();
+  const [movies, setMovies] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [movieStatus, setMovieStatus] = useState('draft'); // 'draft' or 'published'
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    releaseDate: '',
+    genre: '',
+    posterUrl: '',
+    rating: '',
+    status: 'draft', // Add status field
+    reviews: [], // Add reviews field
+    publishDate: null
+  });
+  const [editingMovieId, setEditingMovieId] = useState(null);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [currentFilter, setCurrentFilter] = useState('all'); // Add this state for tracking current filter
+
+  // Add this state for managing movie edit modal
+  const [showMovieModal, setShowMovieModal] = useState(false);
+  const [editingMovie, setEditingMovie] = useState(null);
+
+  // Fetch all movies
+  const fetchMovies = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/movies');
+      const data = await response.json();
+      setMovies(data);
+    } catch (error) {
+      console.error('Error fetching movies:', error);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/users');
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+      const data = await response.json();
+      setUsers(data); // Update the state with the fetched users
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
+  useEffect(() => {
+    const initializeData = async () => {
+      await fetchUsers();
+      setFilteredUsers(users); // Initialize filteredUsers with all users
+    };
+    
+    initializeData();
+  }, []);
+
+  // Add another useEffect to update filteredUsers when users change
+  useEffect(() => {
+    if (currentFilter === 'all') {
+      setFilteredUsers(users);
+    } else {
+      const filtered = users.filter(user => user.role === currentFilter);
+      setFilteredUsers(filtered);
+    }
+  }, [users, currentFilter]);
+
+  // Handle form input changes
+  const handleInputChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  // Add this function to handle filtering
+  const handleFilterChange = (filterValue) => {
+    setCurrentFilter(filterValue);
+    if (filterValue === 'all') {
+      setFilteredUsers(users);
+    } else {
+      const filtered = users.filter(user => user.role === filterValue);
+      setFilteredUsers(filtered);
+    }
+  };
+
+  // Add or update a movie
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      if (editingMovieId) {
+        // Update movie
+        await fetch(`http://localhost:5000/api/movies/${editingMovieId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        });
+      } else {
+        // Add new movie
+        await fetch('http://localhost:5000/api/movies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        });
+      }
+      setFormData({
+        title: '',
+        description: '',
+        releaseDate: '',
+        genre: '',
+        posterUrl: '',
+        rating: '',
+        status: 'draft',
+        reviews: [],
+        publishDate: null
+      });
+      setEditingMovieId(null);
+      fetchMovies();
+    } catch (error) {
+      console.error('Error saving movie:', error);
+    }
+  };
+
+  // Delete a movie
+  const handleDelete = async (id) => {
+    try {
+      await fetch(`http://localhost:5000/api/movies/${id}`, { method: 'DELETE' });
+      fetchMovies();
+    } catch (error) {
+      console.error('Error deleting movie:', error);
+    }
+  };
+
+  // Update the handleEdit function
+  const handleEdit = (movie) => {
+    setEditingMovie(movie);
+    setShowMovieModal(true);
+  };
+
+  // Add handleMovieUpdate function
+  const handleMovieUpdate = async (movieId, updatedData) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/movies/${movieId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update movie');
+      }
+
+      fetchMovies(); // Refresh movies list
+      setShowMovieModal(false);
+      setEditingMovie(null);
+      alert('Movie updated successfully');
+    } catch (error) {
+      console.error('Error updating movie:', error);
+      alert(error.message);
+    }
+  };
+
+  // Add this function to handle movie publishing
+  const handlePublish = async (movieId) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/movies/${movieId}/publish`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'published',
+          publishDate: new Date()
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to publish movie');
+      }
+
+      fetchMovies(); // Refresh the movies list
+    } catch (error) {
+      console.error('Error publishing movie:', error);
+    }
+  };
+
+  // Add these functions to handle review management
+  const handleDeleteReview = async (movieId, reviewId) => {
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/movies/${movieId}/reviews/${reviewId}`,
+        { method: 'DELETE' }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to delete review');
+      }
+
+      fetchMovies(); // Refresh the movies list
+    } catch (error) {
+      console.error('Error deleting review:', error);
+    }
+  };
+
+  // Promote or demote a user
+  const handleRoleChange = async (id, newRole) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/users/${id}/role`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Add token if you have auth
+        },
+        body: JSON.stringify({ role: newRole })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update user role');
+      }
+
+      await fetchUsers(); // Refresh users list
+      setFilteredUsers(users); // Update filtered users as well
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      alert('Failed to update user role'); // Add user feedback
+    }
+  };
+
+  // Remove a user
+  const handleRemoveUser = async (id) => {
+    try {
+      // Add confirmation dialog
+      const confirmDelete = window.confirm('Are you sure you want to remove this user?');
+      if (!confirmDelete) {
+        return;
+      }
+
+      const response = await fetch(`http://localhost:5000/api/users/${id}`, { 
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      // Log the response for debugging
+      console.log('Delete response:', response);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to remove user');
+      }
+
+      // Update both users and filteredUsers states after successful removal
+      setUsers(prevUsers => prevUsers.filter(user => user._id !== id));
+      setFilteredUsers(prevFiltered => prevFiltered.filter(user => user._id !== id));
+      
+      // Show success message
+      alert('User removed successfully');
+    } catch (error) {
+      console.error('Error removing user:', error);
+      alert(error.message || 'Failed to remove user');
+    }
+  };
+
+  // Handle user profile updates
+  const handleUpdateUser = async (userId, updatedData) => {
+    try {
+      // Add console.log to debug the data being sent
+      console.log('Updating user:', userId, updatedData);
+
+      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updatedData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update user');
+      }
+
+      const updatedUser = await response.json();
+      console.log('Updated user:', updatedUser); // Debug log
+
+      // Update the users state
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          user._id === userId ? updatedUser : user
+        )
+      );
+
+      // Only update filtered users if they exist
+      if (filteredUsers.length > 0) {
+        setFilteredUsers(prevFiltered =>
+          prevFiltered.map(user =>
+            user._id === userId ? updatedUser : user
+          )
+        );
+      }
+
+      setShowUserModal(false);
+      setSelectedUser(null);
+      
+      // Add success message
+      alert('User updated successfully');
+    } catch (error) {
+      console.error('Error updating user:', error);
+      alert(error.message || 'Failed to update user profile');
+    }
+  };
+
+  // Logout function
+  const logout = () => {
+    localStorage.removeItem('user');
+    sessionStorage.clear();
+    navigate('/');
+  };
+
+  // Calculate analytics
+  const totalMovies = movies.length;
+  const averageRating =
+    movies.reduce((sum, movie) => sum + movie.rating, 0) / (movies.length || 1);
+  const moviesByGenre = movies.reduce((acc, movie) => {
+    acc[movie.genre] = (acc[movie.genre] || 0) + 1;
+    return acc;
+  }, {});
+
+  return (
+    <div className="min-h-screen bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 text-white">
+      {/* Navigation Bar */}
+      <nav className="bg-black bg-opacity-90 fixed w-full z-50 top-0">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center space-x-8">
+            <h1 className="text-2xl font-bold text-red-600">LuxeStream Admin</h1>
+            <div className="hidden md:flex space-x-6">
+              <Link to="/movies" className="hover:text-red-600">Movies</Link>
+              <Link to="/tv-shows" className="hover:text-red-600">TV Shows</Link>
+              <Link to="/my-list" className="hover:text-red-600">My List</Link>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={logout}
+              className="bg-red-600 px-4 py-2 rounded hover:bg-red-700"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <div className="container mx-auto px-4 py-8 mt-16">
+        <h2 className="text-3xl font-bold mb-6">Admin Dashboard</h2>
+
+        {/* Analytics Section */}
+        <section className="mb-12">
+          <h3 className="text-2xl font-bold mb-4">Movie Analytics</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
+              <h4 className="text-xl font-bold mb-2">Total Movies</h4>
+              <p className="text-3xl font-bold">{totalMovies}</p>
+            </div>
+            <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
+              <h4 className="text-xl font-bold mb-2">Average Rating</h4>
+              <p className="text-3xl font-bold">{averageRating.toFixed(1)}</p>
+            </div>
+            <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
+              <h4 className="text-xl font-bold mb-2">Movies by Genre</h4>
+              <ul>
+                {Object.entries(moviesByGenre).map(([genre, count]) => (
+                  <li key={genre} className="text-gray-400">
+                    {genre}: {count}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* Movie Management Section */}
+        <section className="mb-12">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-2xl font-bold">Manage Movies</h3>
+            <button
+              onClick={() => {
+                setEditingMovie(null); // Reset editing movie
+                setShowMovieModal(true); // Show the modal
+              }}
+              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+            >
+              + Add New Movie
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {movies.map((movie) => (
+              <div key={movie._id} className="bg-gray-800 p-4 rounded-lg shadow-lg">
+                <div className="relative">
+                  {movie.posterUrl && (
+                    <img 
+                      src={movie.posterUrl} 
+                      alt={movie.title} 
+                      className="w-full h-48 object-cover rounded mb-4"
+                    />
+                  )}
+                  <span className={`absolute top-2 right-2 px-2 py-1 rounded text-sm ${
+                    movie.status === 'published' ? 'bg-green-500' : 'bg-yellow-500'
+                  }`}>
+                    {movie.status}
+                  </span>
+                </div>
+                <h3 className="text-xl font-bold mb-2">{movie.title}</h3>
+                <p className="text-gray-400 mb-2">{movie.genre}</p>
+                <p className="text-gray-400 mb-2">Rating: {movie.rating}</p>
+                <p className="text-gray-400 mb-4 line-clamp-2">{movie.description}</p>
+                
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleEdit(movie)}
+                    className="bg-yellow-500 text-white px-3 py-2 rounded hover:bg-yellow-600"
+                  >
+                    <FaEdit className="inline mr-1" /> Edit
+                  </button>
+                  
+                  {movie.status === 'draft' && (
+                    <button
+                      onClick={() => handlePublish(movie._id)}
+                      className="bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600"
+                    >
+                      Publish
+                    </button>
+                  )}
+                  
+                  <button
+                    onClick={() => handleDelete(movie._id)}
+                    className="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600"
+                  >
+                    <FaTrash className="inline mr-1" /> Delete
+                  </button>
+                </div>
+                
+                {/* Reviews Section */}
+                <div className="mt-4">
+                  <h4 className="font-bold mb-2">Reviews ({movie.reviews?.length || 0})</h4>
+                  <div className="max-h-40 overflow-y-auto">
+                    {movie.reviews?.map((review, index) => (
+                      <div key={index} className="bg-gray-700 p-2 rounded mb-2">
+                        <p className="text-sm">{review.content}</p>
+                        <div className="flex justify-between text-xs text-gray-400">
+                          <span>{review.username}</span>
+                          <button
+                            onClick={() => handleDeleteReview(movie._id, review._id)}
+                            className="text-red-400 hover:text-red-500"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* User Management Section */}
+        <section className="mb-12">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-2xl font-bold">Manage Users</h3>
+            <div className="flex gap-4">
+              <select 
+                className="bg-gray-700 text-white px-4 py-2 rounded"
+                value={currentFilter}
+                onChange={(e) => handleFilterChange(e.target.value)}
+              >
+                <option value="all">All Users</option>
+                <option value="user">Regular Users</option>
+                <option value="admin">Admins</option>
+              </select>
+            </div>
+          </div>
+
+          {users.length === 0 ? (
+            <p className="text-gray-400">No users found. Please check the database.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {(currentFilter === 'all' ? users : filteredUsers).map((user) => (
+                <div key={user._id} className="bg-gray-800 p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="text-xl font-bold mb-2">{user.username}</h3>
+                      <p className="text-gray-400 mb-1">Email: {user.email}</p>
+                      <p className="text-gray-400 mb-1">Role: {user.role}</p>
+                      <p className="text-gray-400 mb-1">Status: {user.status || 'Active'}</p>
+                      <p className="text-gray-400 mb-4">Joined: {new Date(user.createdAt).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedUser(user);
+                        setShowUserModal(true);
+                      }}
+                      className="bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600"
+                    >
+                      <FaEdit className="inline mr-1" /> Edit Profile
+                    </button>
+                    
+                    {user.role !== 'admin' && (
+                      <button
+                        onClick={() => handleRoleChange(user._id, 'admin')}
+                        className="bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600"
+                      >
+                        <FaArrowUp className="inline mr-1" /> Promote
+                      </button>
+                    )}
+                    
+                    {user.role === 'admin' && (
+                      <button
+                        onClick={() => handleRoleChange(user._id, 'user')}
+                        className="bg-yellow-500 text-white px-3 py-2 rounded hover:bg-yellow-600"
+                      >
+                        <FaArrowDown className="inline mr-1" /> Demote
+                      </button>
+                    )}
+                    
+                    <button
+                      onClick={() => handleRemoveUser(user._id)}
+                      className="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600"
+                    >
+                      <FaTrash className="inline mr-1" /> Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* User Edit Modal */}
+        {showUserModal && selectedUser && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-800 p-6 rounded-lg w-full max-w-md">
+              <h2 className="text-2xl font-bold mb-4">Edit User Profile</h2>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                handleUpdateUser(selectedUser._id, {
+                  username: e.target.username.value,
+                  email: e.target.email.value,
+                  status: e.target.status.value,
+                });
+              }}>
+                <div className="mb-4">
+                  <label className="block text-gray-400 mb-2">Username</label>
+                  <input
+                    type="text"
+                    name="username"
+                    defaultValue={selectedUser.username}
+                    className="w-full bg-gray-700 text-white px-4 py-2 rounded"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-gray-400 mb-2">Email</label>
+                  <input
+                    type="email"
+                    name="email"
+                    defaultValue={selectedUser.email}
+                    className="w-full bg-gray-700 text-white px-4 py-2 rounded"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-gray-400 mb-2">Status</label>
+                  <select
+                    name="status"
+                    defaultValue={selectedUser.status || 'active'}
+                    className="w-full bg-gray-700 text-white px-4 py-2 rounded"
+                  >
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
+                    <option value="banned">Banned</option>
+                  </select>
+                </div>
+                <div className="flex justify-end gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowUserModal(false)}
+                    className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Movie Edit Modal */}
+        {showMovieModal && editingMovie && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-800 p-6 rounded-lg w-full max-w-4xl">
+              <h2 className="text-2xl font-bold mb-4">Edit Movie</h2>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                handleMovieUpdate(editingMovie._id, {
+                  title: e.target.title.value,
+                  description: e.target.description.value,
+                  genre: e.target.genre.value,
+                  rating: e.target.rating.value,
+                  posterUrl: e.target.posterUrl.value,
+                  status: e.target.status.value,
+                });
+              }}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="mb-4">
+                    <label className="block text-gray-400 mb-2">Title</label>
+                    <input
+                      type="text"
+                      name="title"
+                      defaultValue={editingMovie.title}
+                      className="w-full bg-gray-700 text-white px-4 py-2 rounded"
+                      required
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-gray-400 mb-2">Genre</label>
+                    <select
+                      name="genre"
+                      defaultValue={editingMovie.genre}
+                      className="w-full bg-gray-700 text-white px-4 py-2 rounded"
+                      required
+                    >
+                      <option value="Action">Action</option>
+                      <option value="Comedy">Comedy</option>
+                      <option value="Drama">Drama</option>
+                      <option value="Horror">Horror</option>
+                      <option value="Thriller">Thriller</option>
+                    </select>
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-gray-400 mb-2">Rating</label>
+                    <input
+                      type="number"
+                      name="rating"
+                      min="0"
+                      max="10"
+                      step="0.1"
+                      defaultValue={editingMovie.rating}
+                      className="w-full bg-gray-700 text-white px-4 py-2 rounded"
+                      required
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-gray-400 mb-2">Poster URL</label>
+                    <input
+                      type="url"
+                      name="posterUrl"
+                      defaultValue={editingMovie.posterUrl}
+                      className="w-full bg-gray-700 text-white px-4 py-2 rounded"
+                      required
+                    />
+                  </div>
+                  <div className="mb-4 col-span-2">
+                    <label className="block text-gray-400 mb-2">Description</label>
+                    <textarea
+                      name="description"
+                      defaultValue={editingMovie.description}
+                      className="w-full bg-gray-700 text-white px-4 py-2 rounded h-32"
+                      required
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-gray-400 mb-2">Status</label>
+                    <select
+                      name="status"
+                      defaultValue={editingMovie.status}
+                      className="w-full bg-gray-700 text-white px-4 py-2 rounded"
+                    >
+                      <option value="draft">Draft</option>
+                      <option value="published">Published</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Reviews Section */}
+                <div className="mt-6">
+                  <h3 className="text-xl font-bold mb-4">Reviews</h3>
+                  <div className="max-h-60 overflow-y-auto">
+                    {editingMovie.reviews?.map((review, index) => (
+                      <div key={index} className="bg-gray-700 p-3 rounded mb-2">
+                        <p className="text-sm mb-1">{review.content}</p>
+                        <div className="flex justify-between text-xs text-gray-400">
+                          <span>{review.username}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteReview(editingMovie._id, review._id)}
+                            className="text-red-400 hover:text-red-500"
+                          >
+                            Remove Review
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-4 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setShowMovieModal(false)}
+                    className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                  >
+                    Save Changes
+                  </button>
+                  {editingMovie.status === 'draft' && (
+                    <button
+                      type="button"
+                      onClick={() => handlePublish(editingMovie._id)}
+                      className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                    >
+                      Publish
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default AdminDashboard;
