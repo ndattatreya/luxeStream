@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const Razorpay = require('razorpay');
+const crypto = require('crypto');
+const Payment = require('../models/Payment');
+const auth = require('../middleware/auth');
 
 // Initialize Razorpay
 const razorpay = new Razorpay({
@@ -8,42 +11,99 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET
 });
 
-// Create payment order
-router.post('/payment/create-order', async (req, res) => {
+// Create order endpoint
+router.post('/create-order', auth, async (req, res) => {
   try {
+    const { amount, movieId } = req.body;
+    
     const options = {
-      amount: req.body.amount * 100, // Convert to paise
+      amount: amount * 100, // amount in paisa
       currency: 'INR',
-      receipt: `receipt_${Date.now()}`
+      receipt: `order_${Date.now()}_${movieId}`,
+      payment_capture: 1
     };
 
     const order = await razorpay.orders.create(options);
-    res.json(order);
+    
+    res.status(200).json({
+      success: true,
+      id: order.id,
+      amount: order.amount,
+      currency: order.currency
+    });
   } catch (error) {
-    console.error('Payment order creation error:', error);
-    res.status(500).json({ message: error.message });
+    console.error('Error creating order:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create order',
+      error: error.message
+    });
   }
 });
 
-// Verify payment
-router.post('/payment/verify', async (req, res) => {
+// Payment verification endpoint
+router.post('/verify', auth, async (req, res) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    const {
+      razorpay_payment_id,
+      razorpay_order_id,
+      razorpay_signature
+    } = req.body;
+
+    // Create signature verification string
+    const sign = `${razorpay_order_id}|${razorpay_payment_id}`;
     
-    // Verify the payment signature
-    const generated_signature = crypto
+    // Generate expected signature
+    const expectedSign = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-      .update(razorpay_order_id + '|' + razorpay_payment_id)
+      .update(sign)
       .digest('hex');
 
-    if (generated_signature === razorpay_signature) {
-      res.json({ verified: true });
+    // Verify signature
+    if (razorpay_signature === expectedSign) {
+      res.json({
+        success: true,
+        message: 'Payment verified successfully'
+      });
     } else {
-      res.status(400).json({ verified: false });
+      res.status(400).json({
+        success: false,
+        message: 'Invalid payment signature'
+      });
     }
   } catch (error) {
     console.error('Payment verification error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Payment verification failed'
+    });
+  }
+});
+
+// Record payment
+router.post('/', auth, async (req, res) => {
+  try {
+    const { movieId, paymentId, amount } = req.body;
+    
+    const payment = new Payment({
+      userId: req.user.id,
+      movieId,
+      paymentId,
+      amount
+    });
+
+    await payment.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Payment recorded successfully'
+    });
+  } catch (error) {
+    console.error('Payment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error recording payment'
+    });
   }
 });
 

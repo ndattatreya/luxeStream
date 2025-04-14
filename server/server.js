@@ -10,6 +10,8 @@ const bcrypt = require('bcrypt');
 const User = require('./models/User'); // Import the User model
 const Movie = require('./models/Movie'); // Create a Movie model
 const userRoutes = require('./routes/userRoutes');
+const movieRoutes = require('./routes/movieRoutes'); // Import the Movie routes
+const paymentRoutes = require('./routes/paymentRoutes');
 
 require('dotenv').config();
 
@@ -31,6 +33,13 @@ app.use(cors({
   credentials: true, // Allow cookies and credentials
 }));
 
+// Routes
+app.use('/api/payments', paymentRoutes);
+
+// Mount API routes
+app.use('/api/users', userRoutes);
+app.use('/api/movies', movieRoutes);
+
 // Force JSON content type
 app.use((req, res, next) => {
   res.setHeader('Content-Type', 'application/json');
@@ -44,9 +53,6 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
-
-// Mount routes
-app.use('/api/users', userRoutes);
 
 // Razorpay setup
 const razorpayInstance = new Razorpay({
@@ -273,6 +279,36 @@ app.put('/api/movies/:id', async (req, res) => {
   } catch (error) {
     console.error('Error updating movie:', error);
     res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Publish a movie
+app.put('/api/movies/:id/publish', async (req, res) => {
+  try {
+    const movie = await Movie.findByIdAndUpdate(
+      req.params.id,
+      {
+        status: 'published',
+        publishDate: new Date()
+      },
+      { new: true }
+    );
+
+    if (!movie) {
+      return res.status(404).json({ message: 'Movie not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: movie,
+      message: 'Movie published successfully'
+    });
+  } catch (error) {
+    console.error('Error publishing movie:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error publishing movie'
+    });
   }
 });
 
