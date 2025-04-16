@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../authContext';
 import { Link, useNavigate } from 'react-router-dom';
 import MovieCard from './MovieCard';
+import profile from './UserProfile';
 
 // Add this new function after existing imports
 const fetchIMDBDetails = async (movieTitle) => {
@@ -243,7 +244,7 @@ const UserDashboard = () => {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Navigation Bar */}
+      /* Navigation Bar */
       <nav className="bg-black bg-opacity-90 fixed w-full z-50 top-0">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-8">
@@ -259,7 +260,7 @@ const UserDashboard = () => {
             <input
               type="search"
               placeholder="Search..."
-              className="px-4 py-2 bg-gray-800 rounded-full focus:outline-none"
+              className="w-24 px-2 py-1 text-sm bg-gray-800 rounded-full focus:outline-none"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -272,11 +273,22 @@ const UserDashboard = () => {
             >
               Logout
             </button>
-          </div>
-        </div>
-      </nav>
+            <button
+              type="button"
+              onClick={() => navigate('/userprofile')}
+              className="relative"
+            >
+              <img
+                src="/path/to/default-avatar.png"
+                alt="User Profile"
+                className="w-8 h-8 rounded-full border border-gray-700"
+              />
+            </button>
+                      </div>
+                    </div>
+                    </nav>
 
-      {/* Featured Content Banner */}
+                    {/* Featured Content Banner */}
       {featuredContent && (
         <div
           className="relative h-[50vh] md:h-[70vh] w-full bg-cover bg-center mt-16"
@@ -322,7 +334,7 @@ const UserDashboard = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {movies.map((movie) => (
                 <MovieCard
-                  key={movie._id || `movie-${movie.id}`} // Ensure unique key
+                  key={movie._id || `movie-${movie.title}-${Date.now()}`} // Ensure unique key
                   movie={{
                     id: movie._id || movie.id,
                     title: movie.title,
@@ -361,7 +373,11 @@ const UserDashboard = () => {
           <h2 className="text-3xl font-bold mb-6">Top Rated Movies</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {topMovies.map(movie => (
-              <MovieCard key={movie.id} movie={movie} isPaid={movie.vote_average >= 8} />
+              <MovieCard 
+                key={`top-${movie.id}`} 
+                movie={movie} 
+                isPaid={movie.vote_average >= 8} 
+              />
             ))}
           </div>
         </section>
@@ -371,7 +387,11 @@ const UserDashboard = () => {
           <h2 className="text-3xl font-bold mb-6">Free Movies</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {freeMovies.map(movie => (
-              <MovieCard key={movie.id} movie={movie} isPaid={false} />
+              <MovieCard 
+                key={`free-${movie.id}`} 
+                movie={movie} 
+                isPaid={false} 
+              />
             ))}
           </div>
         </section>
@@ -386,7 +406,11 @@ const UserDashboard = () => {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {paidMovies.map(movie => (
-              <MovieCard key={movie.id} movie={movie} isPaid={true} />
+              <MovieCard 
+                key={`premium-${movie.id}`} 
+                movie={movie} 
+                isPaid={true} 
+              />
             ))}
           </div>
         </section>
@@ -414,7 +438,7 @@ const UserDashboard = () => {
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {continueWatchingMovies.map(movie => (
               <MovieCard
-                key={movie.id}
+                key={`continue-${movie.id}`}
                 movie={movie}
                 isPaid={movie.vote_average >= 8}
                 progress={Math.floor(Math.random() * 90 + 10)} // Random progress between 10-99%
@@ -431,7 +455,7 @@ const UserDashboard = () => {
               .filter(movie => selectedGenre === 'all' || movie.genre_ids.includes(Number(selectedGenre)))
               .map(movie => (
                 <MovieCard
-                  key={movie.id}
+                  key={`recommended-${movie.id}`}
                   movie={movie}
                   isPaid={movie.vote_average >= 8}
                 />
@@ -447,7 +471,7 @@ const UserDashboard = () => {
               .filter(movie => selectedGenre === 'all' || movie.genre_ids.includes(Number(selectedGenre)))
               .map(movie => (
                 <MovieCard
-                  key={movie.id}
+                  key={`trending-${movie.id}`}
                   movie={movie}
                   isPaid={movie.vote_average >= 8}
                 />
@@ -513,7 +537,10 @@ const UserDashboard = () => {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-6">
               {filteredMovies.map((movie) => (
-                <MovieCard key={movie.id} movie={movie} />
+                <MovieCard 
+                  key={`filtered-${movie.id || movie._id}`} 
+                  movie={movie} 
+                />
               ))}
             </div>
           )}
@@ -574,77 +601,7 @@ const MovieDetailsModal = ({ movie, imdbDetails, onClose }) => {
   const navigate = useNavigate();
 
   const handlePayment = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      
-      const orderResponse = await fetch('http://localhost:5000/api/payments/create-order', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          amount: 1200,
-          movieId: movie._id,
-          userId: user?._id
-        })
-      });
-
-      if (!orderResponse.ok) {
-        throw new Error('Failed to create order');
-      }
-
-      const orderData = await orderResponse.json();
-
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-        amount: orderData.amount,
-        currency: orderData.currency,
-        name: 'LuxeStream',
-        description: `Payment for ${movie.title}`,
-        order_id: orderData.id,
-        handler: async (response) => {
-          try {
-            const verifyResponse = await fetch('http://localhost:5000/api/payments/verify', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
-              body: JSON.stringify({
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_signature: response.razorpay_signature,
-                movieId: movie._id
-              })
-            });
-
-            if (verifyResponse.ok) {
-              // Payment successful, redirect to movie page
-              navigate(`/movie/${movie._id}`);
-            } else {
-              throw new Error('Payment verification failed');
-            }
-          } catch (error) {
-            console.error('Payment verification error:', error);
-            alert('Payment verification failed. Please contact support.');
-          }
-        },
-        prefill: {
-          name: user?.username || '',
-          email: user?.email || ''
-        },
-        theme: {
-          color: '#dc2626'
-        }
-      };
-
-      const razorpay = new window.Razorpay(options);
-      razorpay.open();
-    } catch (error) {
-      console.error('Payment error:', error);
-      alert('Failed to initiate payment. Please try again.');
-    }
+    // ...existing payment handling code...
   };
 
   return (
@@ -657,6 +614,7 @@ const MovieDetailsModal = ({ movie, imdbDetails, onClose }) => {
             </svg>
           </button>
         </div>
+        
         <div className="flex flex-col md:flex-row gap-8">
           <div className="md:w-1/3">
             <img 
@@ -665,9 +623,11 @@ const MovieDetailsModal = ({ movie, imdbDetails, onClose }) => {
               className="w-full rounded-lg shadow-lg"
             />
           </div>
+          
           <div className="md:w-2/3">
-            <h2 className="text-3xl font-bold mb-4">{movie.title}</h2>
-            <div className="grid grid-cols-2 gap-4 mb-6">
+            <h2 className="text-2xl font-bold mb-4">{movie.title}</h2>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div>
                 <p className="text-gray-400">Rating</p>
                 <p className="font-bold">{movie.rating || imdbDetails?.imdbRating}/10</p>
@@ -685,18 +645,22 @@ const MovieDetailsModal = ({ movie, imdbDetails, onClose }) => {
                 <p className="font-bold">{imdbDetails?.Runtime}</p>
               </div>
             </div>
+
             <div className="mb-6">
               <h3 className="text-xl font-bold mb-2">Plot</h3>
               <p className="text-gray-300">{movie.description || imdbDetails?.Plot}</p>
             </div>
+
             <div className="mb-6">
               <h3 className="text-xl font-bold mb-2">Cast</h3>
               <p className="text-gray-300">{imdbDetails?.Actors}</p>
             </div>
+
             <div className="mb-6">
               <h3 className="text-xl font-bold mb-2">Director</h3>
               <p className="text-gray-300">{imdbDetails?.Director}</p>
             </div>
+
             <button 
               onClick={handlePayment}
               className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition duration-300"

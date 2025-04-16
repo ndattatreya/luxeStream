@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Movie = require('../models/Movie');
+const mongoose = require('mongoose');
 
 // Middleware to ensure JSON responses and handle large payloads
 router.use(express.json({ limit: '10mb' }));
@@ -48,27 +49,46 @@ router.post('/', async (req, res) => {
 // Update a movie
 router.put('/:id', async (req, res) => {
   try {
+    const { id } = req.params;
+    
+    // Validate MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid movie ID format' 
+      });
+    }
+
+    // Remove large fields if not being updated
+    const updateData = { ...req.body };
+    if (!updateData.posterUrl) {
+      delete updateData.posterUrl;
+    }
+
     const movie = await Movie.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
+      id,
+      { $set: updateData },
+      { new: true, runValidators: true }
     );
+
     if (!movie) {
       return res.status(404).json({
         success: false,
         message: 'Movie not found'
       });
     }
+
     res.json({
       success: true,
-      data: movie,
-      message: 'Movie updated successfully'
+      message: 'Movie updated successfully',
+      movie
     });
   } catch (error) {
     console.error('Error updating movie:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Failed to update movie',
+      error: error.message
     });
   }
 });

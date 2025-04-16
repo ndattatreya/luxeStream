@@ -24,6 +24,7 @@ import Video from './components/Video';
 import AdminDashboard from './components/AdminDashboard';
 import AdminSignup from './components/AdminSignup';
 import AdminLogin from './components/AdminLogin';
+import UserProfile from './components/UserProfile.jsx';
 
 const App = () => {
   return (
@@ -54,13 +55,14 @@ const App = () => {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin-signup" element={<AdminSignup />} />
           <Route path="/admin-login" element={<AdminLogin />} />
-          <Route 
-            path="/dashboard" 
+          <Route path="/userprofile" element={<UserProfile />} />
+          <Route
+            path="/userdashboard"
             element={
               <ProtectedRoute>
                 <UserDashboard />
               </ProtectedRoute>
-            } 
+            }
           />
         </Routes>
       </Router>

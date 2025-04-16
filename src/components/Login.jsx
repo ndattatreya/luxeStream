@@ -1,59 +1,75 @@
-import React, { useState, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import ReCAPTCHA from 'react-google-recaptcha';
+import { useAuth } from '../authContext';
 
 const Login = () => {
   const navigate = useNavigate();
-  const [isAdmin, setIsAdmin] = useState(false); // Toggle between User and Admin login
+  const location = useLocation();
+  const { login } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const recaptchaRef = useRef(null);
   const [captchaValue, setCaptchaValue] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Reset reCAPTCHA on component mount
+  useEffect(() => {
+    if (recaptchaRef.current) {
+      recaptchaRef.current.reset();
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
-    if (!captchaValue) {
-      alert('Please complete the reCAPTCHA verification');
-      return;
-    }
+    setIsLoading(true);
 
     try {
-      const endpoint = isAdmin ? '/api/login' : '/api/login'; // Use appropriate endpoint
-      const response = await fetch(`http://localhost:5000${endpoint}`, {
+      console.log('Attempting login...'); // Debug log
+
+      const response = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ 
+          email, 
+          password,
+          recaptchaToken: captchaValue 
+        }),
+        credentials: 'include'
       });
 
-      const data = await response.json();
-      if (response.ok) {
-        if (isAdmin) {
-          localStorage.setItem('admin', JSON.stringify(data.admin));
-          navigate('/admin'); // Redirect to Admin Dashboard
-        } else {
-          localStorage.setItem('user', JSON.stringify(data.user));
-          navigate('/dashboard'); // Redirect to User Dashboard
-        }
-      } else {
-        setError(data.message || 'Invalid credentials');
-      }
-    } catch (error) {
-      console.error('Error during login:', error);
-      setError('Internal server error');
-    }
-  };
+      console.log('Response status:', response.status); // Debug log
 
-  const handleGoogleAuth = () => {
-    window.open('http://localhost:5000/auth/google', '_self'); // Google OAuth endpoint
+      const data = await response.json();
+      console.log('Response data:', data); // Debug log
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Login failed');
+      }
+
+      // Store token and login
+      localStorage.setItem('token', data.token);
+      await login(data.user);
+
+      // Navigate to appropriate page
+      const intendedPath = location.state?.from || '/dashboard';
+      navigate(intendedPath, { replace: true });
+    } catch (error) {
+      console.error('Login error:', error);
+      setError(error.message || 'An error occurred during login');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCaptchaChange = (value) => {
     setCaptchaValue(value);
+    setError(''); // Clear any existing errors when captcha is completed
   };
 
   return (
@@ -117,17 +133,30 @@ const Login = () => {
           <div className="flex justify-center">
             <ReCAPTCHA
               ref={recaptchaRef}
-              sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY} // Replace with your reCAPTCHA site key
+              sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY}
               onChange={handleCaptchaChange}
               theme="dark"
+              size="normal"
+              hl="en"
+              onExpired={() => {
+                setCaptchaValue(null);
+                setError('reCAPTCHA has expired, please verify again');
+              }}
+              onError={() => {
+                setCaptchaValue(null);
+                setError('Error loading reCAPTCHA');
+              }}
             />
           </div>
 
           <button
             type="submit"
-            className="w-full bg-red-600 text-white py-4 rounded font-semibold hover:bg-red-700 transition duration-300"
+            className={`w-full ${
+              isLoading ? 'bg-gray-600' : 'bg-red-600 hover:bg-red-700'
+            } text-white py-4 rounded font-semibold transition duration-300`}
+            disabled={isLoading || !captchaValue}
           >
-            {isAdmin ? 'Admin Login' : 'User Login'}
+            {isLoading ? 'Logging in...' : (isAdmin ? 'Admin Login' : 'User Login')}
           </button>
         </form>
 
@@ -138,15 +167,6 @@ const Login = () => {
               Sign up now
             </Link>
           </p>
-        </div>
-
-        <div className="mt-6">
-          <button
-            onClick={handleGoogleAuth}
-            className="w-full bg-blue-600 text-white py-4 rounded font-semibold hover:bg-blue-700 transition duration-300"
-          >
-            Continue with Google
-          </button>
         </div>
       </div>
     </div>
