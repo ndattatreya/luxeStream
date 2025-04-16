@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
+const auth = require('../middleware/auth');
 const User = require('../models/User');
+const WatchHistory = require('../models/WatchHistory');
+const Subscription = require('../models/Subscription');
 
 // Add user
 router.post('/add', async (req, res) => {
@@ -115,6 +118,73 @@ router.put('/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Error updating user'
+    });
+  }
+});
+
+// Get user watch history
+router.get('/:userId/watch-history', auth, async (req, res) => {
+  try {
+    // Verify user is accessing their own data
+    if (req.user._id.toString() !== req.params.userId) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const history = await WatchHistory.find({ userId: req.params.userId })
+      .populate('movieId')
+      .sort({ watchedAt: -1 });
+
+    res.json({
+      success: true,
+      data: history
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// Get user favorites
+router.get('/:userId/favorites', auth, async (req, res) => {
+  try {
+    if (req.user._id.toString() !== req.params.userId) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const user = await User.findById(req.params.userId)
+      .populate('favorites');
+
+    res.json({
+      success: true,
+      data: user.favorites || []
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// Get user subscription
+router.get('/:userId/subscription', auth, async (req, res) => {
+  try {
+    if (req.user._id.toString() !== req.params.userId) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const subscription = await Subscription.findOne({ userId: req.params.userId });
+
+    res.json({
+      success: true,
+      data: subscription
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
     });
   }
 });

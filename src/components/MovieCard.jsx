@@ -15,7 +15,7 @@ const getPosterUrl = (poster_path) => {
 
 const MovieCard = ({ movie, isPaid, progress, onClick }) => {
   const navigate = useNavigate();
-  const { isAuthenticated, user, logout } = useAuth(); // Add logout to destructuring
+  const { isAuthenticated, user } = useAuth();
   const [imdbRating, setImdbRating] = useState("N/A");
 
   useEffect(() => {
@@ -69,12 +69,12 @@ const MovieCard = ({ movie, isPaid, progress, onClick }) => {
 
   const handlePayment = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        logout(); // Use the logout function from AuthContext
-        return;
+      const movieId = movie._id || movie.id; // Ensure we have a valid ID
+      if (!movieId) {
+        throw new Error('Invalid movie ID');
       }
 
+      const token = localStorage.getItem('token');
       const orderResponse = await fetch('http://localhost:5000/api/payments/create-order', {
         method: 'POST',
         headers: {
@@ -83,16 +83,10 @@ const MovieCard = ({ movie, isPaid, progress, onClick }) => {
         },
         body: JSON.stringify({
           amount: 1200,
-          movieId: movie.id,
+          movieId: movieId,
           userId: user?._id
         })
       });
-
-      if (orderResponse.status === 401) {
-        // Token expired or invalid
-        logout();
-        return;
-      }
 
       if (!orderResponse.ok) {
         const errorData = await orderResponse.json();
@@ -121,7 +115,7 @@ const MovieCard = ({ movie, isPaid, progress, onClick }) => {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_signature: response.razorpay_signature,
                 userId: user?._id,
-                movieId: movie.id
+                movieId: movieId
               })
             });
 
@@ -155,8 +149,8 @@ const MovieCard = ({ movie, isPaid, progress, onClick }) => {
 
   return (
     <div 
-      className="relative group cursor-pointer"
-      onClick={handleClick}
+      className="relative group cursor-pointer" 
+      onClick={onClick}
     >
       <Link 
         to={`/moviedetails/${movie.id}`} 
@@ -195,18 +189,16 @@ const MovieCard = ({ movie, isPaid, progress, onClick }) => {
                   <span className="text-yellow-400 text-xs md:text-sm">★</span>
                   <span className="text-gray-200 text-xs md:text-sm ml-1">{imdbRating}</span>
                 </div>
-                {isAuthenticated && (
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handlePayment();
-                    }}
-                    className="bg-red-600 text-white px-4 py-1 rounded text-sm hover:bg-red-700 transition-colors"
-                  >
-                    Watch Now ₹1200
-                  </button>
-                )}
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigate('/login');
+                  }}
+                  className="bg-red-600 text-white px-4 py-1 rounded text-sm hover:bg-red-700 transition-colors"
+                >
+                  Watch Now
+                </button>
               </div>
             </div>
           </div>

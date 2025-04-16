@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const Razorpay = require('razorpay');
@@ -12,29 +13,41 @@ const Movie = require('./models/Movie'); // Create a Movie model
 const userRoutes = require('./routes/userRoutes');
 const movieRoutes = require('./routes/movieRoutes'); // Import the Movie routes
 const paymentRoutes = require('./routes/paymentRoutes');
+const authRoutes = require('./routes/authRoutes');
 
-require('dotenv').config();
+// Add this to debug environment variables
+console.log('Environment Check:', {
+  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID,
+  NODE_ENV: process.env.NODE_ENV
+});
 
 const app = express();
 
-// MongoDB connection
-mongoose
-  .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => console.log('Connected to MongoDB'))
-  .catch((err) => console.error('MongoDB connection error:', err));
-
 // Middleware
-app.use(express.json());
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173'], // Allow multiple origins
-  credentials: true, // Allow cookies and credentials
+  origin: 'http://localhost:5173',
+  credentials: true
 }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Debug middleware
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+app.use((req, res, next) => {
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=()');
+  next();
+});
 
 // Routes
 app.use('/api/payments', paymentRoutes);
+app.use('/api/auth', authRoutes);
 
 // Mount API routes
 app.use('/api/users', userRoutes);
@@ -88,50 +101,58 @@ passport.deserializeUser(async (id, done) => {
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: '/auth/google/callback',
+  callbackURL: 'http://localhost:5000/auth/google/callback', // Update this URL
 }, async (accessToken, refreshToken, profile, done) => {
-  let user = await User.findOne({ googleId: profile.id });
-  if (!user) {
-    user = await User.create({
-      googleId: profile.id,
-      username: profile.displayName,
-      email: profile.emails[0].value,
-    });
+  try {
+    let user = await User.findOne({ googleId: profile.id });
+    if (!user) {
+      user = await User.create({
+        googleId: profile.id,
+        username: profile.displayName,
+        email: profile.emails[0].value,
+      });
+    }
+    return done(null, user);
+  } catch (error) {
+    return done(error, null);
   }
-  return done(null, user);
 }));
 
 // GitHub OAuth strategy
 passport.use(new GitHubStrategy({
   clientID: process.env.GITHUB_CLIENT_ID,
   clientSecret: process.env.GITHUB_CLIENT_SECRET,
-  callbackURL: '/auth/github/callback',
+  callbackURL: 'http://localhost:5000/auth/github/callback', // Update this URL
 }, async (accessToken, refreshToken, profile, done) => {
-  let user = await User.findOne({ githubId: profile.id });
-  if (!user) {
-    user = await User.create({
-      githubId: profile.id,
-      username: profile.username,
-      email: profile.emails[0].value,
-    });
+  try {
+    let user = await User.findOne({ githubId: profile.id });
+    if (!user) {
+      user = await User.create({
+        githubId: profile.id,
+        username: profile.username,
+        email: profile.emails ? profile.emails[0].value : `${profile.username}@github.com`,
+      });
+    }
+    return done(null, user);
+  } catch (error) {
+    return done(error, null);
   }
-  return done(null, user);
 }));
 
 // OAuth Routes
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 app.get('/auth/google/callback',
   passport.authenticate('google', {
-    successRedirect: 'http://localhost:3000',
-    failureRedirect: '/login',
+    successRedirect: 'http://localhost:5173/dashboard',
+    failureRedirect: 'http://localhost:5173/login'
   })
 );
 
 app.get('/auth/github', passport.authenticate('github', { scope: ['user:email'] }));
 app.get('/auth/github/callback',
   passport.authenticate('github', {
-    successRedirect: 'http://localhost:3000',
-    failureRedirect: '/login',
+    successRedirect: 'http://localhost:5173/dashboard',
+    failureRedirect: 'http://localhost:5173/login'
   })
 );
 
@@ -326,6 +347,30 @@ app.delete('/api/movies/:id', async (req, res) => {
   }
 });
 
+// Test route
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'Server is running' });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ 
+    success: false, 
+    message: 'Internal server error' 
+  });
+});
+
 // Server start
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log('Connected to MongoDB');
+    });
+  })
+  .catch(err => {
+    console.error('MongoDB connection error:', err);
+    process.exit(1);
+  });

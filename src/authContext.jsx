@@ -1,45 +1,66 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect } from 'react';
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for token and user data on mount
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
-    
-    if (token && userData) {
-      setUser(JSON.parse(userData));
-      setIsAuthenticated(true);
+    // Safely get and parse stored user data
+    try {
+      const storedUser = localStorage.getItem('user');
+      const storedToken = localStorage.getItem('token');
+      
+      if (storedUser && storedToken) {
+        setUser(JSON.parse(storedUser));
+      }
+    } catch (error) {
+      console.error('Error parsing stored user data:', error);
+      // Clear potentially corrupted data
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
-  const login = (token, userData) => {
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(userData));
-    setUser(userData);
-    setIsAuthenticated(true);
+  const login = async (userData) => {
+    try {
+      // Store user data
+      localStorage.setItem('user', JSON.stringify(userData));
+      setUser(userData);
+    } catch (error) {
+      console.error('Error storing user data:', error);
+      throw error;
+    }
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
-    setIsAuthenticated(false);
+    try {
+      // Clear stored data
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      setUser(null);
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
   };
 
-  if (loading) {
-    return <div>Loading...</div>;
-  }
+  // Check authentication status
+  const isAuthenticated = !!user;
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
-      {children}
+    <AuthContext.Provider 
+      value={{ 
+        user, 
+        login, 
+        logout, 
+        isAuthenticated,
+        loading 
+      }}
+    >
+      {!loading && children}
     </AuthContext.Provider>
   );
 };
@@ -51,3 +72,5 @@ export const useAuth = () => {
   }
   return context;
 };
+
+export default AuthContext;
