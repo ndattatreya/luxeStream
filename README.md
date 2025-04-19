@@ -70,8 +70,7 @@ Model built using:
 ### Clone the repo
 
 
-git clone https://github.com/your-username/ott-ai-platform.git
-cd ott-ai-platform
+git clone [https://github.com/your-username/ott-ai-platform.git](https://github.com/ndattatreya/luxeStream.git)
 
 
 ### Start the Frontend
