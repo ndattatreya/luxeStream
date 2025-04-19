@@ -15,12 +15,6 @@ const movieRoutes = require('./routes/movieRoutes'); // Import the Movie routes
 const paymentRoutes = require('./routes/paymentRoutes');
 const authRoutes = require('./routes/authRoutes');
 
-// Add this to debug environment variables
-console.log('Environment Check:', {
-  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID,
-  NODE_ENV: process.env.NODE_ENV
-});
-
 const app = express();
 
 // Middleware
