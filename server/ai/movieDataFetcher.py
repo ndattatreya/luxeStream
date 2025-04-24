@@ -1,122 +1,118 @@
-import requests
-import os
-import time
+from pymongo import MongoClient
+from bson import ObjectId
 
 class MovieDataFetcher:
     def __init__(self):
-        self.tmdb_api_key = '012c99e22d2da82680b0e1206ac07ffa'  # Your TMDB API key
-        self.tmdb_base_url = 'https://api.themoviedb.org/3'
-        self.imdb_base_url = 'https://imdb-api.com/en/API'
-        self.imdb_api_key = None  # We'll focus on TMDB for now
+        # MongoDB connection
+        self.client = MongoClient('mongodb://localhost:27017/')
+        self.db = self.client['luxeStream']
+        self.movies = self.db['movies']
+        self.watch_history = self.db['watchhistories']
+        self.users = self.db['users']
 
     def get_user_watch_history(self, user_id):
-        # In a real application, this would fetch from your database
-        # For now, we'll return a sample watch history
-        return [
-            {
-                'movieId': '550',  # Fight Club
-                'rating': 5,
-                'watch_date': '2023-01-15'
-            },
-            {
-                'movieId': '155',  # The Dark Knight
-                'rating': 4,
-                'watch_date': '2023-02-20'
-            }
-        ]
+        try:
+            # Convert string user_id to ObjectId if needed
+            if isinstance(user_id, str):
+                user_id = ObjectId(user_id)
+            
+            # Get watch history from MongoDB
+            history = list(self.watch_history.find(
+                {'userId': user_id},
+                {'movieId': 1, 'watchTime': 1, 'watchedAt': 1}
+            ))
+            
+            # Get movie details for each watched movie
+            watch_history = []
+            for item in history:
+                movie = self.movies.find_one({'_id': item['movieId']})
+                if movie:
+                    watch_history.append({
+                        'movieId': str(movie['_id']),
+                        'title': movie.get('title', ''),
+                        'genre': movie.get('genre', ''),
+                        'rating': movie.get('rating', 0),
+                        'watchTime': item.get('watchTime', 0),
+                        'watchedAt': item.get('watchedAt')
+                    })
+            
+            return watch_history
+        except Exception as e:
+            print(f"Error getting watch history: {str(e)}")
+            return []
 
     def get_user_preferences(self, user_id):
-        # In a real application, this would fetch from your database
-        # For now, we'll return sample preferences
-        return {
-            'favoriteGenres': ['Action', 'Drama'],
-            'preferredLanguages': ['en'],
-            'favoriteDirectors': ['Christopher Nolan'],
-            'watchHistory': self.get_user_watch_history(user_id)
-        }
-
-    def get_tmdb_movies(self, page=1, num_pages=5):
-        movies = []
-        for page_num in range(page, page + num_pages):
-            try:
-                # Get popular movies
-                response = requests.get(
-                    f'{self.tmdb_base_url}/movie/popular',
-                    params={
-                        'api_key': self.tmdb_api_key,
-                        'page': page_num,
-                        'language': 'en-US'
-                    }
-                )
-                response.raise_for_status()
-                data = response.json()
-                
-                for movie in data['results']:
-                    # Get detailed movie information
-                    details = self.get_tmdb_movie_details(movie['id'])
-                    if details:
-                        movies.append(details)
-                
-                # Respect rate limits
-                time.sleep(0.5)
-            except Exception as e:
-                print(f"Error fetching TMDB movies: {str(e)}")
-                continue
-        
-        return movies
-
-    def get_tmdb_movie_details(self, movie_id):
         try:
-            response = requests.get(
-                f'{self.tmdb_base_url}/movie/{movie_id}',
-                params={
-                    'api_key': self.tmdb_api_key,
-                    'language': 'en-US',
-                    'append_to_response': 'credits'
-                }
-            )
-            response.raise_for_status()
-            data = response.json()
+            # Convert string user_id to ObjectId if needed
+            if isinstance(user_id, str):
+                user_id = ObjectId(user_id)
+            
+            # Get user preferences from MongoDB
+            user = self.users.find_one({'_id': user_id})
+            if not user:
+                return None
+            
+            # Get user's watch history
+            watch_history = self.get_user_watch_history(user_id)
+            
+            # Extract preferences from watch history
+            genres = {}
+            languages = {}
+            directors = {}
+            
+            for movie in watch_history:
+                # Count genre preferences
+                if 'genre' in movie:
+                    genres[movie['genre']] = genres.get(movie['genre'], 0) + 1
+                
+                # Count language preferences
+                if 'language' in movie:
+                    languages[movie['language']] = languages.get(movie['language'], 0) + 1
+                
+                # Count director preferences
+                if 'director' in movie:
+                    directors[movie['director']] = directors.get(movie['director'], 0) + 1
+            
+            # Sort preferences by count
+            favorite_genres = sorted(genres.items(), key=lambda x: x[1], reverse=True)
+            preferred_languages = sorted(languages.items(), key=lambda x: x[1], reverse=True)
+            favorite_directors = sorted(directors.items(), key=lambda x: x[1], reverse=True)
             
             return {
-                'movieId': str(movie_id),
-                'title': data['title'],
-                'genre': data['genres'][0]['name'] if data['genres'] else 'Unknown',
-                'language': data['original_language'],
-                'director': next((crew['name'] for crew in data['credits']['crew'] 
-                                if crew['job'] == 'Director'), 'Unknown'),
-                'rating': data['vote_average'],
-                'overview': data['overview'],
-                'release_date': data['release_date'],
-                'poster_path': f"https://image.tmdb.org/t/p/w500{data['poster_path']}" if data['poster_path'] else None
+                'favoriteGenres': [genre for genre, _ in favorite_genres[:3]],
+                'preferredLanguages': [lang for lang, _ in preferred_languages[:3]],
+                'favoriteDirectors': [director for director, _ in favorite_directors[:3]],
+                'watchHistory': watch_history
             }
         except Exception as e:
-            print(f"Error fetching TMDB movie details: {str(e)}")
+            print(f"Error getting user preferences: {str(e)}")
             return None
 
-    def get_imdb_ratings(self, movie_id):
+    def get_movies(self, limit=100):
         try:
-            response = requests.get(
-                f'{self.imdb_base_url}/Ratings/{self.imdb_api_key}/tt{movie_id}'
-            )
-            response.raise_for_status()
-            data = response.json()
-            return {
-                'imdb_rating': float(data.get('imDb', 0)),
-                'metacritic_rating': float(data.get('metacritic', 0)),
-                'rotten_tomatoes_rating': float(data.get('rottenTomatoes', 0))
-            }
+            # Get movies from MongoDB
+            movies = list(self.movies.find().limit(limit))
+            
+            # Convert ObjectId to string for JSON serialization
+            for movie in movies:
+                movie['_id'] = str(movie['_id'])
+            
+            return movies
         except Exception as e:
-            print(f"Error fetching IMDB ratings: {str(e)}")
-            return None
+            print(f"Error getting movies: {str(e)}")
+            return []
 
-    def fetch_training_data(self, num_movies=100):
-        movies = self.get_tmdb_movies(num_pages=num_movies//20)
-        
-        # Enhance with IMDB ratings
-        for movie in movies:
-            imdb_data = self.get_imdb_ratings(movie['movieId'])
-            if imdb_data:
-                movie.update(imdb_data)
-        
-        return movies 
+    def get_movie_details(self, movie_id):
+        try:
+            # Convert string movie_id to ObjectId if needed
+            if isinstance(movie_id, str):
+                movie_id = ObjectId(movie_id)
+            
+            # Get movie details from MongoDB
+            movie = self.movies.find_one({'_id': movie_id})
+            if movie:
+                movie['_id'] = str(movie['_id'])
+            return movie
+        except Exception as e:
+            print(f"Error getting movie details: {str(e)}")
+            return None 

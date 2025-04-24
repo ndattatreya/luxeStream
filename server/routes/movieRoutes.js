@@ -178,4 +178,99 @@ router.delete('/:movieId/reviews/:reviewId', async (req, res) => {
   }
 });
 
+// Search and filter movies
+router.get('/search', async (req, res) => {
+    try {
+        const { 
+            query, 
+            genre, 
+            language, 
+            year, 
+            rating, 
+            sortBy = 'title',
+            sortOrder = 'asc',
+            page = 1,
+            limit = 10
+        } = req.query;
+
+        // Build the filter object
+        const filter = {};
+        
+        if (query) {
+            filter.$or = [
+                { title: { $regex: query, $options: 'i' } },
+                { description: { $regex: query, $options: 'i' } },
+                { director: { $regex: query, $options: 'i' } }
+            ];
+        }
+        
+        if (genre) {
+            filter.genre = { $regex: genre, $options: 'i' };
+        }
+        
+        if (language) {
+            filter.language = { $regex: language, $options: 'i' };
+        }
+        
+        if (year) {
+            filter.releaseYear = parseInt(year);
+        }
+        
+        if (rating) {
+            filter.rating = { $gte: parseFloat(rating) };
+        }
+
+        // Calculate pagination
+        const skip = (page - 1) * limit;
+
+        // Build sort object
+        const sort = {};
+        sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+        // Execute query
+        const movies = await Movie.find(filter)
+            .sort(sort)
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        // Get total count for pagination
+        const total = await Movie.countDocuments(filter);
+
+        res.json({
+            movies,
+            pagination: {
+                total,
+                page: parseInt(page),
+                pages: Math.ceil(total / limit),
+                limit: parseInt(limit)
+            }
+        });
+    } catch (error) {
+        console.error('Error searching movies:', error);
+        res.status(500).json({ error: 'Failed to search movies' });
+    }
+});
+
+// Get all unique genres
+router.get('/genres', async (req, res) => {
+    try {
+        const genres = await Movie.distinct('genre');
+        res.json(genres);
+    } catch (error) {
+        console.error('Error getting genres:', error);
+        res.status(500).json({ error: 'Failed to get genres' });
+    }
+});
+
+// Get all unique languages
+router.get('/languages', async (req, res) => {
+    try {
+        const languages = await Movie.distinct('language');
+        res.json(languages);
+    } catch (error) {
+        console.error('Error getting languages:', error);
+        res.status(500).json({ error: 'Failed to get languages' });
+    }
+});
+
 module.exports = router;

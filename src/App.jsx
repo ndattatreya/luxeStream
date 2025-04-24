@@ -6,6 +6,7 @@ import UserDashboard from './components/UserDashboard';
 import Login from './components/Login';
 import SignUp from './components/SignUp.jsx';
 import MovieDetails from './components/MovieDetails.jsx';
+import Movies from './components/Movies.jsx';
 import Homepage from './components/Homepage.jsx';
 import Footer from './components/Footer.jsx';
 import ContactUs from './components/ContactUs.jsx';
@@ -56,6 +57,7 @@ const App = () => {
           <Route path="/admin-signup" element={<AdminSignup />} />
           <Route path="/admin-login" element={<AdminLogin />} />
           <Route path="/userprofile" element={<UserProfile />} />
+          <Route path="/movies" element={<Movies />} />
           <Route
             path="/userdashboard"
             element={

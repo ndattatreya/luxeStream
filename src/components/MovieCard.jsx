@@ -5,18 +5,19 @@ import { useAuth } from '../authContext'; // Add this import
 const RAZORPAY_KEY_ID = import.meta.env.VITE_RAZORPAY_KEY_ID;
 
 const getPosterUrl = (poster_path) => {
-  if (poster_path?.startsWith('http')) {
-    return poster_path;
-  } else if (poster_path?.startsWith('/')) {
-    return `https://image.tmdb.org/t/p/w500${poster_path}`;
-  }
-  return poster_path || '/placeholder-poster.jpg';
+  if (!poster_path) return '/placeholder-poster.jpg';
+  if (poster_path.startsWith('http')) return poster_path;
+  return `https://image.tmdb.org/t/p/w500${poster_path}`;
 };
 
 const MovieCard = ({ movie, isPaid, progress, onClick }) => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
   const [imdbRating, setImdbRating] = useState("N/A");
+
+  useEffect(() => {
+    console.log('MovieCard received movie:', movie);
+  }, [movie]);
 
   useEffect(() => {
     const fetchImdbRating = async () => {
@@ -150,7 +151,7 @@ const MovieCard = ({ movie, isPaid, progress, onClick }) => {
   return (
     <div 
       className="relative group cursor-pointer" 
-      onClick={onClick}
+      onClick={handleClick}
     >
       <Link 
         to={`/moviedetails/${movie.id}`} 
@@ -177,7 +178,7 @@ const MovieCard = ({ movie, isPaid, progress, onClick }) => {
               <h3 className="text-xs md:text-sm font-semibold text-white line-clamp-2">{movie.title}</h3>
               <div className="flex items-center mt-1">
                 <span className="text-yellow-400 text-xs md:text-sm">★</span>
-                <span className="text-gray-200 text-xs md:text-sm ml-1">{imdbRating}</span>
+                <span className="text-gray-200 text-xs md:text-sm ml-1">{movie.vote_average?.toFixed(1) || "N/A"}</span>
               </div>
             </div>
             
@@ -187,7 +188,7 @@ const MovieCard = ({ movie, isPaid, progress, onClick }) => {
               <div className="flex items-center justify-between mt-2">
                 <div className="flex items-center">
                   <span className="text-yellow-400 text-xs md:text-sm">★</span>
-                  <span className="text-gray-200 text-xs md:text-sm ml-1">{imdbRating}</span>
+                  <span className="text-gray-200 text-xs md:text-sm ml-1">{movie.vote_average?.toFixed(1) || "N/A"}</span>
                 </div>
                 <button
                   onClick={(e) => {

@@ -3,8 +3,12 @@ const router = express.Router();
 const recommenderService = require('../ai/recommenderService');
 const { authenticateUser } = require('../middleware/auth');
 
+console.log('Loading recommendation routes...');
+console.log('recommenderService:', recommenderService);
+console.log('authenticateUser:', authenticateUser);
+
 // Get recommendations for a user
-router.get('/recommendations', authenticateUser, async (req, res) => {
+router.get('/user', authenticateUser, async (req, res) => {
     try {
         // Get user's watch history and preferences from database
         const userId = req.user._id;
@@ -55,12 +59,11 @@ router.post('/train', authenticateUser, async (req, res) => {
             {
                 userId: "user1",
                 // Add user preferences...
-            },
-            // Add more user preferences...
+            }
         ];
 
         await recommenderService.trainModel(movies, preferences);
-        res.json({ status: 'success' });
+        res.json({ message: 'Model trained successfully' });
     } catch (error) {
         console.error('Error training model:', error);
         res.status(500).json({ error: 'Failed to train model' });

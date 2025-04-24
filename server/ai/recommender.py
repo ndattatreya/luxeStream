@@ -61,34 +61,24 @@ class MovieRecommender:
     def calculate_user_preference_score(self, movie, user_preferences):
         score = 0
         
-        # Check genre match
-        if movie['genre'] in user_preferences.get('favoriteGenres', []):
-            score += 2
+        # Genre match
+        if 'genre' in movie and 'favoriteGenres' in user_preferences:
+            if movie['genre'] in user_preferences['favoriteGenres']:
+                score += 3
         
-        # Check language match
-        if movie['language'] in user_preferences.get('preferredLanguages', []):
-            score += 1
+        # Language match
+        if 'language' in movie and 'preferredLanguages' in user_preferences:
+            if movie['language'] in user_preferences['preferredLanguages']:
+                score += 2
         
-        # Check director match
-        if movie['director'] in user_preferences.get('favoriteDirectors', []):
-            score += 2
+        # Director match
+        if 'director' in movie and 'favoriteDirectors' in user_preferences:
+            if movie['director'] in user_preferences['favoriteDirectors']:
+                score += 2
         
-        # Get user's watch history from MongoDB
-        watch_history = self.get_user_watch_history(user_preferences.get('userId'))
-        
-        # Check watch history
-        for watched in watch_history:
-            if watched['movieId'] == movie['movieId']:
-                # Recent watches have more weight
-                watch_date = datetime.strptime(watched['watch_date'], '%Y-%m-%d')
-                days_ago = (datetime.now() - watch_date).days
-                recency_weight = max(0, 1 - (days_ago / 365))  # Weight decreases over a year
-                
-                # Consider both rating and watch time
-                rating_weight = watched.get('rating', 0) / 5  # Normalize rating to 0-1
-                watch_time_weight = min(1, watched.get('watch_time', 0) / 7200)  # Normalize watch time (2 hours max)
-                
-                score += (rating_weight + watch_time_weight) * recency_weight
+        # Rating consideration
+        if 'rating' in movie:
+            score += movie['rating'] / 2  # Normalize rating to 0-5 scale
         
         return score
 
@@ -100,125 +90,140 @@ class MovieRecommender:
         categorical_features = ['genre', 'language', 'director']
         for feature in categorical_features:
             if feature in df.columns:
-                if feature not in self.label_encoders:
-                    self.label_encoders[feature] = LabelEncoder()
-                    df[feature] = self.label_encoders[feature].fit_transform(df[feature].astype(str))
-                else:
-                    # Handle unseen categories
-                    known_categories = set(self.label_encoders[feature].classes_)
-                    new_categories = set(df[feature].astype(str))
-                    if not new_categories.issubset(known_categories):
-                        # Retrain encoder with new categories
-                        self.label_encoders[feature] = LabelEncoder()
-                        df[feature] = self.label_encoders[feature].fit_transform(df[feature].astype(str))
-                    else:
-                        df[feature] = self.label_encoders[feature].transform(df[feature].astype(str))
+                self.label_encoders[feature] = LabelEncoder()
+                df[feature] = self.label_encoders[feature].fit_transform(df[feature].fillna('Unknown'))
+        
+        # Fill missing values
+        numeric_features = ['rating', 'releaseYear']
+        for feature in numeric_features:
+            if feature in df.columns:
+                df[feature] = df[feature].fillna(df[feature].mean())
         
         return df
 
     def train(self, movies_data=None, user_preferences=None):
-        # If no movies data provided, fetch from TMDB
-        if movies_data is None:
-            movies_data = self.data_fetcher.fetch_training_data(num_movies=100)
-        
-        # Preprocess movies data
-        movies_df = self.preprocess_data(movies_data)
-        
-        # Create features and target
-        X = movies_df.drop(['movieId', 'title', 'rating', 'overview', 'release_date', 'poster_path'], 
-                          axis=1, errors='ignore')
-        y = movies_df['rating'].apply(lambda x: 1 if x >= 4 else 0)
-        
-        # Train models
-        self.dt_model.fit(X, y)
-        self.rf_model.fit(X, y)
-        self.is_trained = True
-
-        # Save models and encoders
-        joblib.dump(self.dt_model, os.path.join(self.model_path, 'dt_model.joblib'))
-        joblib.dump(self.rf_model, os.path.join(self.model_path, 'rf_model.joblib'))
-        joblib.dump(self.label_encoders, os.path.join(self.model_path, 'label_encoders.joblib'))
-        joblib.dump(True, os.path.join(self.model_path, 'is_trained.joblib'))
+        try:
+            # If no data provided, fetch from database
+            if movies_data is None:
+                movies_data = self.data_fetcher.get_movies()
+            
+            if not movies_data:
+                raise ValueError("No movies data available for training")
+            
+            # Preprocess the data
+            df = self.preprocess_data(movies_data)
+            
+            # Prepare features and target
+            features = ['genre', 'language', 'director', 'rating', 'releaseYear']
+            X = df[features]
+            
+            # Create target variable based on user preferences
+            if user_preferences:
+                y = df.apply(lambda row: self.calculate_user_preference_score(
+                    row.to_dict(), user_preferences
+                ), axis=1)
+            else:
+                # If no user preferences, use rating as target
+                y = df['rating']
+            
+            # Train models
+            self.dt_model.fit(X, y)
+            self.rf_model.fit(X, y)
+            
+            # Save models and encoders
+            joblib.dump(self.dt_model, os.path.join(self.model_path, 'dt_model.joblib'))
+            joblib.dump(self.rf_model, os.path.join(self.model_path, 'rf_model.joblib'))
+            joblib.dump(self.label_encoders, os.path.join(self.model_path, 'label_encoders.joblib'))
+            
+            self.is_trained = True
+            return True
+        except Exception as e:
+            print(f"Error training model: {str(e)}")
+            return False
 
     def load_models(self):
         try:
             self.dt_model = joblib.load(os.path.join(self.model_path, 'dt_model.joblib'))
             self.rf_model = joblib.load(os.path.join(self.model_path, 'rf_model.joblib'))
             self.label_encoders = joblib.load(os.path.join(self.model_path, 'label_encoders.joblib'))
-            self.is_trained = joblib.load(os.path.join(self.model_path, 'is_trained.joblib'))
+            self.is_trained = True
             return True
-        except:
+        except Exception as e:
+            print(f"Error loading models: {str(e)}")
             return False
 
     def predict(self, movies_data, user_preferences):
-        if not self.is_trained:
-            if not self.load_models():
-                raise Exception("Model not trained yet")
-        
-        # Preprocess movies data
-        movies_df = self.preprocess_data(movies_data)
-        
-        # Prepare features for prediction
-        X = movies_df.drop(['movieId', 'title', 'rating', 'overview', 'release_date', 'poster_path'], 
-                          axis=1, errors='ignore')
-        
-        # Get predictions from both models
-        dt_predictions = self.dt_model.predict_proba(X)
-        rf_predictions = self.rf_model.predict_proba(X)
-        
-        # Handle single-column predictions
-        if dt_predictions.shape[1] == 1:
-            dt_scores = dt_predictions.ravel()
-        else:
-            dt_scores = dt_predictions[:, 1]
+        try:
+            if not self.is_trained:
+                if not self.load_models():
+                    raise ValueError("Models not trained and cannot be loaded")
             
-        if rf_predictions.shape[1] == 1:
-            rf_scores = rf_predictions.ravel()
-        else:
-            rf_scores = rf_predictions[:, 1]
-        
-        # Combine predictions (simple average)
-        model_predictions = (dt_scores + rf_scores) / 2
-        
-        # Create recommendations with user preference scores
-        recommendations = []
-        for i, movie in enumerate(movies_data):
-            user_score = self.calculate_user_preference_score(movie, user_preferences)
-            # Combine model prediction with user preference score
-            final_score = (model_predictions[i] * 0.7) + (user_score / 10 * 0.3)  # 70% model, 30% user preferences
+            # Preprocess the data
+            df = self.preprocess_data(movies_data)
             
-            recommendations.append({
-                'movieId': movie['movieId'],
-                'title': movie['title'],
-                'score': float(final_score),
-                'model_score': float(model_predictions[i]),
-                'user_preference_score': float(user_score / 10),
-                'poster_path': movie.get('poster_path'),
-                'overview': movie.get('overview')
-            })
-        
-        # Sort by final score
-        recommendations.sort(key=lambda x: x['score'], reverse=True)
-        return recommendations[:10]  # Return top 10 recommendations
+            # Prepare features
+            features = ['genre', 'language', 'director', 'rating', 'releaseYear']
+            X = df[features]
+            
+            # Get predictions from both models
+            dt_predictions = self.dt_model.predict_proba(X)
+            rf_predictions = self.rf_model.predict_proba(X)
+            
+            # Combine predictions (simple average)
+            combined_predictions = (dt_predictions + rf_predictions) / 2
+            
+            # Add predictions to movies data
+            for i, movie in enumerate(movies_data):
+                movie['recommendation_score'] = float(combined_predictions[i][1])
+            
+            # Sort movies by recommendation score
+            recommended_movies = sorted(
+                movies_data,
+                key=lambda x: x.get('recommendation_score', 0),
+                reverse=True
+            )
+            
+            return recommended_movies[:10]  # Return top 10 recommendations
+        except Exception as e:
+            print(f"Error making predictions: {str(e)}")
+            return []
 
 def main():
     # Read input from stdin
     input_data = json.loads(sys.stdin.read())
+    action = input_data.get('action')
+    movies = input_data.get('movies', [])
+    preferences = input_data.get('preferences', {})
     
-    # Initialize recommender
     recommender = MovieRecommender()
+    result = {}
     
     try:
-        if input_data['action'] == 'train':
-            recommender.train(input_data.get('movies'), input_data.get('preferences'))
-            print(json.dumps({'status': 'success', 'message': 'Model trained successfully'}))
-        elif input_data['action'] == 'predict':
-            recommendations = recommender.predict(input_data['movies'], input_data['preferences'])
-            print(json.dumps({'status': 'success', 'recommendations': recommendations}))
+        if action == 'train':
+            success = recommender.train(movies, preferences)
+            result = {
+                'status': 'success' if success else 'error',
+                'message': 'Model trained successfully' if success else 'Failed to train model'
+            }
+        elif action == 'predict':
+            recommendations = recommender.predict(movies, preferences)
+            result = {
+                'status': 'success',
+                'recommendations': recommendations
+            }
         else:
-            print(json.dumps({'status': 'error', 'message': 'Invalid action'}))
+            result = {
+                'status': 'error',
+                'message': 'Invalid action'
+            }
     except Exception as e:
-        print(json.dumps({'status': 'error', 'message': str(e)}))
+        result = {
+            'status': 'error',
+            'message': str(e)
+        }
+    
+    # Write result to stdout
+    print(json.dumps(result))
 
 if __name__ == '__main__':
     main() 
