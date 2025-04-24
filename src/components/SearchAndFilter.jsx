@@ -1,17 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import {
-  Box,
-  TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Slider,
-  Button,
-  Grid,
-  Typography,
-} from '@mui/material';
 
 const TMDB_GENRES = [
   { id: 28, name: 'Action' },
@@ -61,7 +49,6 @@ const SearchAndFilter = ({ onSearch }) => {
   });
 
   useEffect(() => {
-    // Parse URL parameters
     const params = new URLSearchParams(location.search);
     setSearchQuery(params.get('query') || '');
     setFilters({
@@ -87,105 +74,97 @@ const SearchAndFilter = ({ onSearch }) => {
   };
 
   return (
-    <Box sx={{ p: 3, bgcolor: 'background.paper', borderRadius: 2 }}>
-      <Grid container spacing={2}>
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Search Movies"
-            variant="outlined"
+    <div className="bg-gray-900 p-4 md:p-6 rounded-lg mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="col-span-1 md:col-span-2 lg:col-span-3">
+          <input
+            type="text"
+            placeholder="Search Movies..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            className="w-full p-3 rounded bg-gray-800 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-600"
           />
-        </Grid>
+        </div>
 
-        <Grid item xs={12} sm={6} md={3}>
-          <FormControl fullWidth>
-            <InputLabel>Genre</InputLabel>
-            <Select
-              value={filters.genre}
-              onChange={(e) => setFilters({ ...filters, genre: e.target.value })}
-              label="Genre"
-            >
-              <MenuItem value="">All Genres</MenuItem>
-              {TMDB_GENRES.map((genre) => (
-                <MenuItem key={genre.id} value={genre.id}>
-                  {genre.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Grid>
+        <div>
+          <select
+            value={filters.genre}
+            onChange={(e) => setFilters({ ...filters, genre: e.target.value })}
+            className="w-full p-3 rounded bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-red-600"
+          >
+            <option value="">All Genres</option>
+            {TMDB_GENRES.map((genre) => (
+              <option key={genre.id} value={genre.id}>
+                {genre.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        <Grid item xs={12} sm={6} md={3}>
-          <FormControl fullWidth>
-            <InputLabel>Language</InputLabel>
-            <Select
-              value={filters.language}
-              onChange={(e) => setFilters({ ...filters, language: e.target.value })}
-              label="Language"
-            >
-              <MenuItem value="">All Languages</MenuItem>
-              {TMDB_LANGUAGES.map((lang) => (
-                <MenuItem key={lang.code} value={lang.code}>
-                  {lang.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Grid>
+        <div>
+          <select
+            value={filters.language}
+            onChange={(e) => setFilters({ ...filters, language: e.target.value })}
+            className="w-full p-3 rounded bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-red-600"
+          >
+            <option value="">All Languages</option>
+            {TMDB_LANGUAGES.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        <Grid item xs={12} sm={6} md={3}>
-          <TextField
-            fullWidth
-            label="Year"
+        <div>
+          <input
             type="number"
+            placeholder="Year"
             value={filters.year}
             onChange={(e) => setFilters({ ...filters, year: e.target.value })}
+            className="w-full p-3 rounded bg-gray-800 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-600"
           />
-        </Grid>
+        </div>
 
-        <Grid item xs={12} sm={6} md={3}>
-          <Typography gutterBottom>Minimum Rating</Typography>
-          <Slider
-            value={filters.rating}
-            onChange={(e, value) => setFilters({ ...filters, rating: value })}
-            min={0}
-            max={10}
-            step={0.5}
-            valueLabelDisplay="auto"
-          />
-        </Grid>
+        <div>
+          <select
+            value={filters.sortBy}
+            onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}
+            className="w-full p-3 rounded bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-red-600"
+          >
+            <option value="popularity.desc">Popularity</option>
+            <option value="vote_average.desc">Rating</option>
+            <option value="release_date.desc">Release Date</option>
+            <option value="title.asc">Title (A-Z)</option>
+          </select>
+        </div>
 
-        <Grid item xs={12} sm={6}>
-          <FormControl fullWidth>
-            <InputLabel>Sort By</InputLabel>
-            <Select
-              value={filters.sortBy}
-              onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}
-              label="Sort By"
-            >
-              <MenuItem value="popularity.desc">Popularity</MenuItem>
-              <MenuItem value="vote_average.desc">Rating</MenuItem>
-              <MenuItem value="release_date.desc">Release Date</MenuItem>
-              <MenuItem value="title.asc">Title (A-Z)</MenuItem>
-            </Select>
-          </FormControl>
-        </Grid>
+        <div className="col-span-1 md:col-span-2 lg:col-span-3">
+          <div className="flex items-center space-x-2">
+            <span className="text-white">Rating: {filters.rating}</span>
+            <input
+              type="range"
+              min="0"
+              max="10"
+              step="0.5"
+              value={filters.rating}
+              onChange={(e) => setFilters({ ...filters, rating: parseFloat(e.target.value) })}
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            />
+          </div>
+        </div>
 
-        <Grid item xs={12}>
-          <Button
-            variant="contained"
-            color="primary"
+        <div className="col-span-1 md:col-span-2 lg:col-span-3">
+          <button
             onClick={handleSearch}
-            fullWidth
+            className="w-full bg-red-600 text-white py-3 px-4 rounded font-semibold hover:bg-red-700 transition duration-300"
           >
             Search
-          </Button>
-        </Grid>
-      </Grid>
-    </Box>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 

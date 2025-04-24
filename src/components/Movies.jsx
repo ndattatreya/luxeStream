@@ -1,16 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import {
-  Container,
-  Grid,
-  Typography,
-  Box,
-  Pagination,
-} from '@mui/material';
 import MovieCard from './MovieCard';
 import SearchAndFilter from './SearchAndFilter';
 
-const TMDB_API_KEY = '012c99e22d2da82680b0e1206ac07ffa'; // Replace with your actual TMDB API key
+const TMDB_API_KEY = '012c99e22d2da82680b0e1206ac07ffa';
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
 const Movies = () => {
@@ -30,7 +23,6 @@ const Movies = () => {
       setLoading(true);
       setError(null);
       
-      // Parse the search parameters
       const searchParams = new URLSearchParams(params);
       const query = searchParams.get('query') || '';
       const page = searchParams.get('page') || 1;
@@ -39,7 +31,6 @@ const Movies = () => {
       const language = searchParams.get('language') || '';
       const sortBy = searchParams.get('sortBy') || 'popularity.desc';
 
-      // For initial load, fetch popular movies
       let url;
       if (query) {
         url = `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&page=${page}`;
@@ -47,7 +38,6 @@ const Movies = () => {
         url = `${TMDB_BASE_URL}/movie/popular?api_key=${TMDB_API_KEY}&page=${page}`;
       }
       
-      // Add filters only if we're not doing a text search
       if (!query) {
         if (genre) url += `&with_genres=${genre}`;
         if (year) url += `&year=${year}`;
@@ -73,7 +63,6 @@ const Movies = () => {
         throw new Error('Invalid data format received from TMDB');
       }
       
-      // Transform TMDB data to match MovieCard component's expectations
       const transformedMovies = data.results.map(movie => ({
         id: movie.id,
         title: movie.title,
@@ -82,8 +71,7 @@ const Movies = () => {
         release_date: movie.release_date,
         vote_average: movie.vote_average,
         genre_ids: movie.genre_ids,
-        // Add any additional fields that MovieCard might need
-        _id: movie.id, // For compatibility with existing code
+        _id: movie.id,
         rating: movie.vote_average,
         description: movie.overview,
       }));
@@ -106,12 +94,10 @@ const Movies = () => {
     }
   };
 
-  // Initial load - fetch popular movies
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     console.log('Initial URL params:', params.toString());
     
-    // If no search parameters, fetch popular movies
     if (!params.toString()) {
       fetchMovies('page=1');
     } else {
@@ -128,59 +114,70 @@ const Movies = () => {
 
   if (loading) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-          <Typography>Loading...</Typography>
-        </Box>
-      </Container>
+      <div className="min-h-screen bg-black text-white">
+        <div className="container mx-auto px-3 md:px-4 py-4 md:py-8">
+          <div className="flex justify-center items-center h-64">
+            <p className="text-xl">Loading...</p>
+          </div>
+        </div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-          <Typography color="error">Error: {error}</Typography>
-        </Box>
-      </Container>
+      <div className="min-h-screen bg-black text-white">
+        <div className="container mx-auto px-3 md:px-4 py-4 md:py-8">
+          <div className="flex justify-center items-center h-64">
+            <p className="text-xl text-red-600">Error: {error}</p>
+          </div>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Movies
-      </Typography>
+    <div className="min-h-screen bg-black text-white">
+      <div className="container mx-auto px-3 md:px-4 py-4 md:py-8">
+        <h1 className="text-2xl md:text-4xl font-bold mb-4 md:mb-8">Movies</h1>
+        
+        <SearchAndFilter onSearch={fetchMovies} />
 
-      <SearchAndFilter onSearch={fetchMovies} />
+        {movies.length === 0 ? (
+          <div className="flex justify-center items-center h-64">
+            <p className="text-xl">No movies found</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-8">
+              {movies.map((movie) => (
+                <MovieCard key={movie.id} movie={movie} />
+              ))}
+            </div>
 
-      {movies.length === 0 ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-          <Typography>No movies found</Typography>
-        </Box>
-      ) : (
-        <>
-          <Grid container spacing={3} sx={{ mt: 2 }}>
-            {movies.map((movie) => (
-              <Grid item xs={12} sm={6} md={4} lg={3} key={movie.id}>
-                <MovieCard movie={movie} />
-              </Grid>
-            ))}
-          </Grid>
-
-          {pagination.pages > 1 && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-              <Pagination
-                count={pagination.pages}
-                page={pagination.page}
-                onChange={handlePageChange}
-                color="primary"
-              />
-            </Box>
-          )}
-        </>
-      )}
-    </Container>
+            {pagination.pages > 1 && (
+              <div className="flex justify-center mt-8">
+                <div className="flex space-x-2">
+                  {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => handlePageChange(null, page)}
+                      className={`px-4 py-2 rounded ${
+                        page === pagination.page
+                          ? 'bg-red-600 text-white'
+                          : 'bg-gray-800 text-white hover:bg-gray-700'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
   );
 };
 
