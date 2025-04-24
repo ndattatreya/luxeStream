@@ -14,6 +14,8 @@ const userRoutes = require('./routes/userRoutes');
 const movieRoutes = require('./routes/movieRoutes'); // Import the Movie routes
 const paymentRoutes = require('./routes/paymentRoutes');
 const authRoutes = require('./routes/authRoutes');
+const recommendationRoutes = require('./routes/recommendation');
+const watchHistoryRoutes = require('./routes/watchHistoryRoutes');
 
 const app = express();
 
@@ -46,6 +48,8 @@ app.use('/api/auth', authRoutes);
 // Mount API routes
 app.use('/api/users', userRoutes);
 app.use('/api/movies', movieRoutes);
+app.use('/api/recommendations', recommendationRoutes);
+app.use('/api/watch-history', watchHistoryRoutes);
 
 // Force JSON content type
 app.use((req, res, next) => {
