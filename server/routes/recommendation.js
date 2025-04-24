@@ -1,14 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const recommenderService = require('../ai/recommenderService');
-const { authenticateUser } = require('../middleware/auth');
+const auth = require('../middleware/auth');
 
 console.log('Loading recommendation routes...');
 console.log('recommenderService:', recommenderService);
-console.log('authenticateUser:', authenticateUser);
+console.log('auth middleware:', auth);
 
 // Get recommendations for a user
-router.get('/user', authenticateUser, async (req, res) => {
+router.get('/user', auth, async (req, res) => {
     try {
         // Get user's watch history and preferences from database
         const userId = req.user._id;
@@ -40,7 +40,7 @@ router.get('/user', authenticateUser, async (req, res) => {
 });
 
 // Train the recommendation model
-router.post('/train', authenticateUser, async (req, res) => {
+router.post('/train', auth, async (req, res) => {
     try {
         // Get all movies and user preferences from database
         const movies = [
@@ -51,13 +51,12 @@ router.post('/train', authenticateUser, async (req, res) => {
                 language: "English",
                 director: "Director 1",
                 rating: 4.5
-            },
-            // Add more movies...
+            }
         ];
 
         const preferences = [
             {
-                userId: "user1",
+                userId: 1,
                 // Add user preferences...
             }
         ];
