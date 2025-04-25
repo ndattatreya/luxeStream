@@ -32,16 +32,21 @@ const Homepage = () => {
 
   return (
     <div className="min-h-screen bg-white text-black dark:bg-gray-900 dark:text-white">
-      <header className="flex justify-between items-center p-2 md:p-4 bg-black bg-opacity-75">
-        <h1 className="text-xl md:text-3xl font-bold text-red-600">LuxeStream</h1>
-        <ThemeToggle />
-        <Link
-          to="/userlogin"
-          className="text-sm md:text-base text-white border border-gray-300 px-2 md:px-4 py-1 md:py-2 rounded hover:bg-gray-300 hover:text-black transition duration-300 no-underline"
-        >
-          Sign In
-        </Link>
+      <header className="flex justify-between items-center px-3 py-2 md:px-6 md:py-4 bg-black bg-opacity-75">
+        <h1 className="text-lg md:text-3xl font-bold text-red-600">LuxeStream</h1>
+
+        {/* Right side: Theme Toggle + Sign In */}
+        <div className="flex items-center space-x-2 md:space-x-4">
+          <ThemeToggle />
+          <Link
+            to="/userlogin"
+            className="text-xs md:text-base text-white border border-gray-300 px-2 md:px-4 py-1 md:py-2 rounded hover:bg-gray-300 hover:text-black transition duration-300 no-underline"
+          >
+            Sign In
+          </Link>
+        </div>
       </header>
+
       <div
         className="relative h-[40vh] md:h-[60vh] w-full bg-cover bg-center"
         style={{
@@ -55,7 +60,7 @@ const Homepage = () => {
           <p className="text-base md:text-xl mb-2 md:mb-4">Starts at ₹149. Cancel at any time.</p>
           <p className="text-sm md:text-lg mb-2 md:mb-4">
             Ready to watch? Enter your email to create or restart your membership.
-          </p> 
+          </p>
           <div className="flex flex-col md:flex-row gap-2 md:gap-4 w-full max-w-md">
             <input
               type="email"

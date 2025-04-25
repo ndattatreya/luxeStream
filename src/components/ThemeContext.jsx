@@ -25,7 +25,7 @@ export const ThemeProvider = ({ children }) => {
 export const ThemeToggle = () => {
   const { theme, toggleTheme } = useTheme();
   return (
-    <div style={{ marginLeft: '73vw' }}>
+    <div>
     <button
       onClick={toggleTheme}
       style={{

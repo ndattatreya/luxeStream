@@ -231,15 +231,20 @@ const AdminDashboard = () => {
     try {
       const response = await fetch(`http://localhost:5000/api/movies/${movieId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // Only add Authorization if you really need it
+          // 'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        },
         body: JSON.stringify(updatedData)
       });
-
+  
       if (!response.ok) {
-        throw new Error('Failed to update movie');
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to update movie');
       }
-
-      fetchMovies(); // Refresh movies list
+  
+      fetchMovies(); // Refresh list
       setShowMovieModal(false);
       setEditingMovie(null);
       alert('Movie updated successfully');
@@ -248,6 +253,8 @@ const AdminDashboard = () => {
       alert(error.message);
     }
   };
+  
+  
 
   // Add this function to handle movie publishing
   const handlePublish = async (movieId) => {

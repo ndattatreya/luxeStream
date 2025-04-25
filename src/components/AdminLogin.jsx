@@ -1,6 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import ReCAPTCHA from 'react-google-recaptcha';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../authContext';
 
 const AdminLogin = () => {
@@ -9,17 +8,12 @@ const AdminLogin = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const recaptchaRef = useRef(null);
-  const [captchaValue, setCaptchaValue] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    if (recaptchaRef.current) recaptchaRef.current.reset();
-  }, []);
-
-  // Assuming the form fields are 'email' and 'password' stored in state
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
+    setError('');
 
     try {
       const response = await fetch('http://localhost:5000/api/auth/login', {
@@ -34,13 +28,16 @@ const AdminLogin = () => {
 
       if (response.ok) {
         localStorage.setItem('adminToken', data.token);
+        login({ token: data.token, role: 'admin' });
         navigate('/admindashboard');
       } else {
-        alert(data.message || 'Login failed');
+        setError(data.message || 'Login failed');
       }
     } catch (err) {
       console.error('Login error:', err);
-      alert('An error occurred during login');
+      setError('An error occurred during login');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -72,37 +69,14 @@ const AdminLogin = () => {
             required
           />
 
-          <div className="flex justify-center">
-            <ReCAPTCHA
-              ref={recaptchaRef}
-              sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY}
-              onChange={(value) => {
-                setCaptchaValue(value);
-                setError('');
-              }}
-              onExpired={() => {
-                setCaptchaValue(null);
-                setError('reCAPTCHA expired, please verify again');
-              }}
-              onError={() => {
-                setCaptchaValue(null);
-                setError('Error loading reCAPTCHA');
-              }}
-              theme="dark"
-              size="normal"
-              hl="en"
-            />
-          </div>
-
           <button
             type="submit"
             className={`w-full ${isLoading ? 'bg-gray-600' : 'bg-red-600 hover:bg-red-700'} text-white py-4 rounded font-semibold transition duration-300`}
-            disabled={isLoading || !captchaValue}
+            disabled={isLoading}
           >
             {isLoading ? 'Logging in...' : 'Admin Login'}
           </button>
         </form>
-
       </div>
     </div>
   );

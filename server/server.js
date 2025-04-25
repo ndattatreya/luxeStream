@@ -17,6 +17,7 @@ const authRoutes = require('./routes/authRoutes');
 const auth = require('./middleware/auth'); // Adjust path if needed
 
 const app = express();
+app.use(express.json());
 
 // Helper to generate JWT for a user
 function generateJWT(user) {
@@ -176,7 +177,7 @@ app.get('/api/user', (req, res) => {
 // Logout
 app.get('/logout', (req, res) => {
   req.logout(() => {
-    res.redirect('http://localhost:3000');
+    res.redirect('http://localhost:5173');
   });
 });
 
@@ -227,19 +228,63 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Admin login endpoint
-app.post('/api/auth/login', (req, res) => {
+const router = express.Router();
+
+router.post('/login', (req, res) => {
   const { email, password } = req.body;
 
-  // TEMPORARY debug logs
-  console.log('Incoming:', email, password);
-  console.log('Expected:', process.env.ADMIN_EMAIL, process.env.ADMIN_PASSWORD);
+  // Logging to debug
+  console.log("Admin login attempt:", email, password);
+  console.log("Env:", process.env.ADMIN_EMAIL, process.env.ADMIN_PASSWORD);
 
-  if (email === process.env.ADMIN_EMAIL && password === process.env.ADMIN_PASSWORD) {
-    const token = jwt.sign({ role: 'admin' }, 'your-secret-key', { expiresIn: '1h' });
-    return res.json({ success: true, message: 'Login successful', token });
-  } else {
-    return res.status(401).json({ success: false, message: 'Invalid credentials' });
+  if (
+    email === process.env.ADMIN_EMAIL &&
+    password === process.env.ADMIN_PASSWORD
+  ) {
+    const token = jwt.sign(
+      { email, role: 'admin' },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    return res.status(200).json({ token });
+  }
+
+  return res.status(401).json({ message: 'Invalid credentials' });
+});
+
+module.exports = router;
+
+// Admin login endpoint
+app.post('/api/auth/login', async(req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    if (user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied: Not an admin' });
+    }
+
+    // Compare with environment variable (no hashing)
+    if (password !== process.env.ADMIN_PASSWORD) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    const token = jwt.sign(
+      { userId: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    res.status(200).json({ token });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -271,20 +316,37 @@ app.put('/api/movies/:id', async (req, res) => {
   try {
     const movieId = req.params.id;
 
+    // Validate MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(movieId)) {
-      return res.status(400).json({ message: 'Invalid movie ID' });
+      return res.status(400).json({ message: 'Invalid movie ID format' });
     }
 
-    console.log('Updating movie:', movieId);
-    console.log('Request body:', req.body);
+    const { title, description, genre, releaseDate, image, videoUrl } = req.body;
 
-    const movie = await Movie.findByIdAndUpdate(movieId, req.body, { new: true });
+    // Optional: Enforce stricter required fields
+    if (!title || !description) {
+      return res.status(400).json({ message: 'Title and description are required' });
+    }
 
-    if (!movie) {
+    const updatedMovie = await Movie.findByIdAndUpdate(
+      movieId,
+      {
+        title,
+        description,
+        genre,
+        releaseDate,
+        image,
+        videoUrl
+      },
+      { new: true }
+    );
+
+    if (!updatedMovie) {
       return res.status(404).json({ message: 'Movie not found' });
     }
 
-    res.status(200).json({ message: 'Movie updated successfully', movie });
+    console.log('Updated movie:', updatedMovie);
+    res.status(200).json({ message: 'Movie updated successfully', movie: updatedMovie });
   } catch (error) {
     console.error('Error updating movie:', error);
     res.status(500).json({ message: 'Internal server error' });
